@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Équipements - GMAO</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #222; }
+    h1 { margin-bottom: 16px; }
+    form { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    input, select, button { padding: 6px 8px; font-size: 14px; }
+    button { background: #417690; color: white; border: none; cursor: pointer; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
+    th { background: #417690; color: white; }
+    tr:nth-child(even) { background: #f6f6f6; }
+    .crit-critique { color: #b00020; font-weight: bold; }
+    .crit-elevee { color: #d97706; font-weight: bold; }
+    .vide { padding: 16px; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Équipements</h1>
+
+  <form method="get">
+    <input type="text" name="q" placeholder="Nom, marque, modèle, n° de série" value="{{ recherche }}">
+
+    <select name="local">
+      <option value="">Tous les locaux</option>
+      {% for l in locaux %}
+        <option value="{{ l.id }}" {% if local_id == l.id|stringformat:"s" %}selected{% endif %}>{{ l.nom }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="criticite">
+      <option value="">Toutes les criticités</option>
+      {% for valeur, libelle in criticite_choices %}
+        <option value="{{ valeur }}" {% if criticite == valeur %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="statut">
+      <option value="">Tous les statuts</option>
+      {% for valeur, libelle in statut_choices %}
+        <option value="{{ valeur }}" {% if statut == valeur %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit">Filtrer</button>
+    <a href="{% url 'liste_equipements' %}" style="align-self:center;">Réinitialiser</a>
+  </form>
+
+  <p>{{ equipements|length }} équipement(s)</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Nom</th>
+        <th>Local</th>
+        <th>Type</th>
+        <th>Marque</th>
+        <th>Modèle</th>
+        <th>N° de série</th>
+        <th>Criticité</th>
+        <th>Statut</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in equipements %}
+        <tr>
+          <td>{{ e.nom }}</td>
+          <td>{{ e.local|default:"-" }}</td>
+          <td>{{ e.type_equipement|default:"-" }}</td>
+          <td>{{ e.marque|default:"-" }}</td>
+          <td>{{ e.modele|default:"-" }}</td>
+          <td>{{ e.numero_serie|default:"-" }}</td>
+          <td class="crit-{{ e.criticite }}">{{ e.get_criticite_display }}</td>
+          <td>{{ e.get_statut_display }}</td>
+          <td><a href="{% url 'admin:maintenance_equipement_change' e.id %}">Modifier</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="9" class="vide">Aucun équipement ne correspond à la recherche.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
