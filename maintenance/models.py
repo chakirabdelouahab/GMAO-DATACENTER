@@ -60,6 +60,8 @@ class Equipement(models.Model):
     )
     notes = models.TextField(blank=True)
 
+    quantite = models.PositiveIntegerField("quantité", default=1, help_text="0 = non dénombré")
+
     class Meta:
         verbose_name = "équipement"
         verbose_name_plural = "équipements"
@@ -81,6 +83,8 @@ class PlanMaintenance(models.Model):
     )
     derniere_realisation = models.DateField(null=True, blank=True)
     actif = models.BooleanField(default=True)
+    
+    premiere_echeance = models.DateField("première échéance", null=True, blank=True)
 
     class Meta:
         verbose_name = "plan de maintenance"
@@ -90,7 +94,7 @@ class PlanMaintenance(models.Model):
     def prochaine_echeance(self):
         if self.derniere_realisation:
             return self.derniere_realisation + timedelta(days=self.periodicite_jours)
-        return date.today()
+        return self.premiere_echeance or date.today()
 
     def __str__(self):
         return f"{self.equipement} - {self.tache}"
