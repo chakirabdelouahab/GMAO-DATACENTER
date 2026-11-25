@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from django.conf import settings
 from django.db import models
 
@@ -53,6 +55,12 @@ class PlanMaintenance(models.Model):
     derniere_realisation = models.DateField(null=True, blank=True)
     actif = models.BooleanField(default=True)
 
+    @property
+    def prochaine_echeance(self):
+        if self.derniere_realisation:
+            return self.derniere_realisation + timedelta(days=self.periodicite_jours)
+        return date.today()
+
     def __str__(self):
         return f"{self.equipement} - {self.tache}"
 
@@ -87,5 +95,15 @@ class OrdreTravail(models.Model):
     date_prevue = models.DateField(null=True, blank=True)
     date_cloture = models.DateField("date de clôture", null=True, blank=True)
 
-    def __str__(self):
+def save(self, *args, **kwargs):
+        if self.statut == "termine" and not self.date_cloture:
+            self.date_cloture = date.today()
+        super().save(*args, **kwargs)
+        if self.statut == "termine" and self.plan_id:
+            plan = self.plan
+            if not plan.derniere_realisation or self.date_cloture > plan.derniere_realisation:
+                plan.derniere_realisation = self.date_cloture
+                plan.save(update_fields=["derniere_realisation"])
+
+def __str__(self):
         return f"{self.titre} ({self.equipement})"
