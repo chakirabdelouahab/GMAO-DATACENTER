@@ -29,7 +29,7 @@
     <div class="carte"><div class="nombre">{{ nb_en_cours }}</div>En cours</div>
     <div class="carte retard"><div class="nombre">{{ nb_en_retard }}</div>En retard</div>
     <div class="carte avenir"><div class="nombre">{{ nb_a_venir }}</div>À venir (14 jours)</div>
-    <div class="carte"><div class="nombre">{{ nb_nc_ouvertes }}</div>Non-conformités ouvertes</div>
+    <div class="carte"><div class="nombre">{{ nb_nc_ouvertes }}</div>Non-conformités non clôturées</div>
     <div class="carte retard"><div class="nombre">{{ nb_nc_critiques }}</div>dont critiques</div>
   </div>
 
@@ -97,7 +97,7 @@
   {% else %}
     <p class="vide">Aucun ordre actif sans date.</p>
   {% endif %}
-  <h2>Non-conformités ouvertes</h2>
+  <h2>Non-conformités non clôturées</h2>
   {% if nc_ouvertes %}
     <table>
       <thead><tr><th>Réf.</th><th>Titre</th><th>Lot</th><th>Équipement</th><th>Gravité</th><th>Statut</th><th>Échéance</th></tr></thead>

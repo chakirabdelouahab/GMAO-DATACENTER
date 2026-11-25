@@ -66,7 +66,7 @@ def tableau_de_bord(request):
 
     # Tri sur la gravité : l'ordre alphabétique donne critique, majeure, mineure.
     nc_ouvertes = (
-        NonConformite.objects.filter(statut__in=["ouverte", "en_traitement"])
+        NonConformite.objects.exclude(statut="cloturee")
         .select_related("equipement", "lot")
         .order_by("gravite", "date_echeance")
     )

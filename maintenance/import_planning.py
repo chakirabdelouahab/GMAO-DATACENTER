@@ -4,7 +4,6 @@ from datetime import date, timedelta
 
 from openpyxl import load_workbook
 
-PREMIERE_COLONNE_SEMAINE = 8  # colonne I (index 8) : première semaine du planning
 
 FREQUENCES = {
     "H": ("hebdomadaire", 7),
@@ -39,6 +38,22 @@ def _lundi_initial(feuille, lundi_force=None):
     return d
 
 
+def _detecter_colonnes(feuille):
+    """Repère par leur titre la colonne « Nbr » et la 1re colonne de semaine (« S 10 »...)."""
+    col_nbr = 5          # valeur par défaut
+    col_semaine = None
+    for ligne in feuille.iter_rows(min_row=1, max_row=5, values_only=True):
+        for idx, valeur in enumerate(ligne):
+            texte = _propre(valeur)
+            if texte.lower() == "nbr":
+                col_nbr = idx
+            if col_semaine is None and re.fullmatch(r"S\s*\d{1,2}", texte, flags=re.IGNORECASE):
+                col_semaine = idx
+    if col_semaine is None:
+        raise ValueError("Colonnes de semaines (« S 10 », « S 11 »...) introuvables dans les en-têtes")
+    return col_nbr, col_semaine
+
+
 def lire_planning(chemin, lundi_force=None):
     """Retourne (familles, avertissements).
 
@@ -46,6 +61,7 @@ def lire_planning(chemin, lundi_force=None):
     """
     feuille = load_workbook(chemin, data_only=True).active
     lundi0 = _lundi_initial(feuille, lundi_force)
+    col_nbr, col_semaine = _detecter_colonnes(feuille)
     familles = {}
     avertissements = []
 
@@ -58,10 +74,10 @@ def lire_planning(chemin, lundi_force=None):
         fiche = familles.setdefault(
             cle, {"lot": lot, "famille": famille, "quantite": 0, "plans": []}
         )
-        fiche["quantite"] = max(fiche["quantite"], _entier(ligne[5]))
+        fiche["quantite"] = max(fiche["quantite"], _entier(ligne[col_nbr]))
 
         par_lettre = {}
-        for col in range(PREMIERE_COLONNE_SEMAINE, len(ligne)):
+        for col in range(col_semaine, len(ligne)):
             marque = _propre(ligne[col])
             if not marque:
                 continue
@@ -69,7 +85,7 @@ def lire_planning(chemin, lundi_force=None):
             if lettre not in FREQUENCES:
                 avertissements.append(f"Ligne {num} ({famille}) : code « {marque} » ignoré")
                 continue
-            lundi = lundi0 + timedelta(days=7 * (col - PREMIERE_COLONNE_SEMAINE))
+            lundi = lundi0 + timedelta(days=7 * (col - col_semaine))
             par_lettre.setdefault(lettre, []).append(lundi)
 
         for lettre, dates in par_lettre.items():
