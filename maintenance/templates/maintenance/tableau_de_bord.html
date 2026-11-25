@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tableau de bord - GMAO</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #222; }
+    h2 { margin-top: 32px; border-bottom: 2px solid #417690; padding-bottom: 4px; }
+    .menu { margin-bottom: 16px; }
+    .cartes { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+    .carte { flex: 1; min-width: 150px; padding: 16px; border-radius: 6px; background: #f1f5f8; text-align: center; }
+    .carte .nombre { font-size: 32px; font-weight: bold; }
+    .carte.retard { background: #fdecea; color: #b00020; }
+    .carte.avenir { background: #fff4e0; color: #b45309; }
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
+    th { background: #417690; color: white; }
+    tr:nth-child(even) { background: #f6f6f6; }
+    .vide { color: #666; padding: 8px 0; }
+  </style>
+</head>
+<body>
+  <h1>Tableau de bord</h1>
+  <div class="menu"><a href="{% url 'liste_equipements' %}">Liste des équipements</a> | <a href="{% url 'admin:index' %}">Administration</a></div>
+
+  <div class="cartes">
+    <div class="carte"><div class="nombre">{{ nb_ouverts }}</div>Ordres ouverts</div>
+    <div class="carte"><div class="nombre">{{ nb_en_cours }}</div>En cours</div>
+    <div class="carte retard"><div class="nombre">{{ nb_en_retard }}</div>En retard</div>
+    <div class="carte avenir"><div class="nombre">{{ nb_a_venir }}</div>À venir (14 jours)</div>
+  </div>
+
+  <h2>Ordres en retard</h2>
+  {% if en_retard %}
+    <table>
+      <thead><tr><th>Date prévue</th><th>Ordre</th><th>Équipement</th><th>Type</th><th>Priorité</th><th>Statut</th><th>Technicien</th></tr></thead>
+      <tbody>
+        {% for o in en_retard %}
+          <tr>
+            <td>{{ o.date_prevue|date:"d/m/Y" }}</td>
+            <td><a href="{% url 'admin:maintenance_ordretravail_change' o.id %}">{{ o.titre }}</a></td>
+            <td><a href="{% url 'fiche_equipement' o.equipement.id %}">{{ o.equipement }}</a></td>
+            <td>{{ o.get_type_ordre_display }}</td>
+            <td>{{ o.get_priorite_display }}</td>
+            <td>{{ o.get_statut_display }}</td>
+            <td>{{ o.technicien|default:"-" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="vide">Aucun ordre en retard.</p>
+  {% endif %}
+
+  <h2>Ordres à venir (14 prochains jours)</h2>
+  {% if a_venir %}
+    <table>
+      <thead><tr><th>Date prévue</th><th>Ordre</th><th>Équipement</th><th>Type</th><th>Priorité</th><th>Statut</th><th>Technicien</th></tr></thead>
+      <tbody>
+        {% for o in a_venir %}
+          <tr>
+            <td>{{ o.date_prevue|date:"d/m/Y" }}</td>
+            <td><a href="{% url 'admin:maintenance_ordretravail_change' o.id %}">{{ o.titre }}</a></td>
+            <td><a href="{% url 'fiche_equipement' o.equipement.id %}">{{ o.equipement }}</a></td>
+            <td>{{ o.get_type_ordre_display }}</td>
+            <td>{{ o.get_priorite_display }}</td>
+            <td>{{ o.get_statut_display }}</td>
+            <td>{{ o.technicien|default:"-" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="vide">Aucun ordre prévu dans les 14 prochains jours.</p>
+  {% endif %}
+
+  <h2>Ordres actifs sans date prévue</h2>
+  {% if sans_date %}
+    <table>
+      <thead><tr><th>Créé le</th><th>Ordre</th><th>Équipement</th><th>Type</th><th>Priorité</th><th>Statut</th></tr></thead>
+      <tbody>
+        {% for o in sans_date %}
+          <tr>
+            <td>{{ o.date_creation|date:"d/m/Y" }}</td>
+            <td><a href="{% url 'admin:maintenance_ordretravail_change' o.id %}">{{ o.titre }}</a></td>
+            <td><a href="{% url 'fiche_equipement' o.equipement.id %}">{{ o.equipement }}</a></td>
+            <td>{{ o.get_type_ordre_display }}</td>
+            <td>{{ o.get_priorite_display }}</td>
+            <td>{{ o.get_statut_display }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="vide">Aucun ordre actif sans date.</p>
+  {% endif %}
+
+  <h2>Équipements non en service</h2>
+  {% if equipements_alerte %}
+    <table>
+      <thead><tr><th>Équipement</th><th>Local</th><th>Criticité</th><th>Statut</th></tr></thead>
+      <tbody>
+        {% for e in equipements_alerte %}
+          <tr>
+            <td><a href="{% url 'fiche_equipement' e.id %}">{{ e.nom }}</a></td>
+            <td>{{ e.local|default:"-" }}</td>
+            <td>{{ e.get_criticite_display }}</td>
+            <td>{{ e.get_statut_display }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="vide">Tous les équipements sont en service.</p>
+  {% endif %}
+</body>
+</html>

@@ -20,7 +20,8 @@
   </style>
 </head>
 <body>
-  <h1>Équipements</h1>
+    <h1>Équipements</h1>
+  <p><a href="{% url 'tableau_de_bord' %}">&larr; Tableau de bord</a></p>
 
   <form method="get">
     <input type="text" name="q" placeholder="Nom, marque, modèle, n° de série" value="{{ recherche }}">

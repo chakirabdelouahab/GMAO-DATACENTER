@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ equipement.nom }} - GMAO</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #222; }
+    h1 { margin-bottom: 4px; }
+    h2 { margin-top: 32px; border-bottom: 2px solid #417690; padding-bottom: 4px; }
+    .liens { margin-bottom: 16px; }
+    dl { display: grid; grid-template-columns: 200px 1fr; gap: 6px 16px; }
+    dt { font-weight: bold; }
+    dd { margin: 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
+    th { background: #417690; color: white; }
+    tr:nth-child(even) { background: #f6f6f6; }
+    .vide { color: #666; padding: 8px 0; }
+    .crit-critique { color: #b00020; font-weight: bold; }
+    .crit-elevee { color: #d97706; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="liens">
+    <a href="{% url 'tableau_de_bord' %}">Tableau de bord</a> |
+    <a href="{% url 'liste_equipements' %}">&larr; Retour à la liste</a> |
+    <a href="{% url 'admin:maintenance_equipement_change' equipement.id %}">Modifier dans l'administration</a>
+  </div>
+
+  <h1>{{ equipement.nom }}</h1>
+
+  <dl>
+    <dt>Local</dt><dd>{{ equipement.local|default:"-" }}</dd>
+    <dt>Type</dt><dd>{{ equipement.type_equipement|default:"-" }}</dd>
+    <dt>Marque</dt><dd>{{ equipement.marque|default:"-" }}</dd>
+    <dt>Modèle</dt><dd>{{ equipement.modele|default:"-" }}</dd>
+    <dt>N° de série</dt><dd>{{ equipement.numero_serie|default:"-" }}</dd>
+    <dt>Mise en service</dt><dd>{{ equipement.date_mise_en_service|date:"d/m/Y"|default:"-" }}</dd>
+    <dt>Criticité</dt><dd class="crit-{{ equipement.criticite }}">{{ equipement.get_criticite_display }}</dd>
+    <dt>Statut</dt><dd>{{ equipement.get_statut_display }}</dd>
+    <dt>Équipement parent</dt>
+    <dd>
+      {% if equipement.parent %}
+        <a href="{% url 'fiche_equipement' equipement.parent.id %}">{{ equipement.parent }}</a>
+      {% else %}-{% endif %}
+    </dd>
+    <dt>Notes</dt><dd>{{ equipement.notes|default:"-"|linebreaksbr }}</dd>
+  </dl>
+
+  <h2>Sous-équipements</h2>
+  {% if sous_equipements %}
+    <ul>
+      {% for s in sous_equipements %}
+        <li><a href="{% url 'fiche_equipement' s.id %}">{{ s.nom }}</a></li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="vide">Aucun sous-équipement.</p>
+  {% endif %}
+
+  <h2>Plans de maintenance</h2>
+  {% if plans %}
+    <table>
+      <thead>
+        <tr><th>Tâche</th><th>Périodicité (jours)</th><th>Durée estimée (h)</th><th>Dernière réalisation</th><th>Prochaine échéance</th><th>Actif</th></tr>
+      </thead>
+      <tbody>
+        {% for p in plans %}
+          <tr>
+            <td>{{ p.tache }}</td>
+            <td>{{ p.periodicite_jours }}</td>
+            <td>{{ p.duree_estimee_heures|default:"-" }}</td>
+            <td>{{ p.derniere_realisation|date:"d/m/Y"|default:"-" }}</td>
+            <td>{{ p.prochaine_echeance|date:"d/m/Y" }}</td>
+            <td>{{ p.actif|yesno:"Oui,Non" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="vide">Aucun plan de maintenance.</p>
+  {% endif %}
+
+  <h2>Historique des ordres de travail</h2>
+  {% if ordres %}
+    <table>
+      <thead>
+        <tr><th>Créé le</th><th>Titre</th><th>Type</th><th>Priorité</th><th>Statut</th><th>Technicien</th><th>Clôturé le</th></tr>
+      </thead>
+      <tbody>
+        {% for o in ordres %}
+          <tr>
+            <td>{{ o.date_creation|date:"d/m/Y" }}</td>
+            <td><a href="{% url 'admin:maintenance_ordretravail_change' o.id %}">{{ o.titre }}</a></td>
+            <td>{{ o.get_type_ordre_display }}</td>
+            <td>{{ o.get_priorite_display }}</td>
+            <td>{{ o.get_statut_display }}</td>
+            <td>{{ o.technicien|default:"-" }}</td>
+            <td>{{ o.date_cloture|date:"d/m/Y"|default:"-" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="vide">Aucun ordre de travail pour cet équipement.</p>
+  {% endif %}
+</body>
+</html>

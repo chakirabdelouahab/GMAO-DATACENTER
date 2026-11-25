@@ -1,12 +1,30 @@
 from datetime import date, timedelta
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+
+
+class Lot(models.Model):
+    code = models.CharField(max_length=20, unique=True)
+    nom = models.CharField(max_length=100)
+
+    class Meta:
+        verbose_name = "lot technique"
+        verbose_name_plural = "lots techniques"
+        ordering = ["code"]
+
+    def __str__(self):
+        return f"{self.code} - {self.nom}"
 
 
 class Local(models.Model):
     nom = models.CharField(max_length=100)
     description = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "local"
+        verbose_name_plural = "locaux"
 
     def __str__(self):
         return self.nom
@@ -27,6 +45,7 @@ class Equipement(models.Model):
     ]
 
     nom = models.CharField(max_length=150)
+    lot = models.ForeignKey(Lot, on_delete=models.SET_NULL, null=True, blank=True)
     local = models.ForeignKey(Local, on_delete=models.SET_NULL, null=True, blank=True)
     type_equipement = models.CharField("type", max_length=100, blank=True)
     marque = models.CharField(max_length=100, blank=True)
@@ -41,6 +60,14 @@ class Equipement(models.Model):
     )
     notes = models.TextField(blank=True)
 
+    class Meta:
+        verbose_name = "équipement"
+        verbose_name_plural = "équipements"
+
+    def clean(self):
+        if self.parent_id and self.parent_id == self.pk:
+            raise ValidationError({"parent": "Un équipement ne peut pas être son propre parent."})
+
     def __str__(self):
         return self.nom
 
@@ -54,6 +81,10 @@ class PlanMaintenance(models.Model):
     )
     derniere_realisation = models.DateField(null=True, blank=True)
     actif = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "plan de maintenance"
+        verbose_name_plural = "plans de maintenance"
 
     @property
     def prochaine_echeance(self):
@@ -95,7 +126,11 @@ class OrdreTravail(models.Model):
     date_prevue = models.DateField(null=True, blank=True)
     date_cloture = models.DateField("date de clôture", null=True, blank=True)
 
-def save(self, *args, **kwargs):
+    class Meta:
+        verbose_name = "ordre de travail"
+        verbose_name_plural = "ordres de travail"
+
+    def save(self, *args, **kwargs):
         if self.statut == "termine" and not self.date_cloture:
             self.date_cloture = date.today()
         super().save(*args, **kwargs)
@@ -105,5 +140,73 @@ def save(self, *args, **kwargs):
                 plan.derniere_realisation = self.date_cloture
                 plan.save(update_fields=["derniere_realisation"])
 
-def __str__(self):
+    def __str__(self):
         return f"{self.titre} ({self.equipement})"
+
+
+class NonConformite(models.Model):
+    GRAVITE_CHOICES = [
+        ("mineure", "Mineure"),
+        ("majeure", "Majeure"),
+        ("critique", "Critique"),
+    ]
+    STATUT_CHOICES = [
+        ("ouverte", "Ouverte"),
+        ("en_traitement", "En traitement"),
+        ("corrigee", "Corrigée"),
+        ("cloturee", "Clôturée"),
+    ]
+    ORIGINE_CHOICES = [
+        ("audit", "Audit"),
+        ("inspection", "Inspection"),
+        ("maintenance", "Maintenance"),
+        ("incident", "Incident"),
+        ("autre", "Autre"),
+    ]
+
+    reference = models.CharField("référence", max_length=20, blank=True, editable=False)
+    titre = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    lot = models.ForeignKey(Lot, on_delete=models.SET_NULL, null=True, blank=True)
+    equipement = models.ForeignKey(
+        Equipement, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="non_conformites", verbose_name="équipement",
+    )
+    local = models.ForeignKey(Local, on_delete=models.SET_NULL, null=True, blank=True)
+    origine = models.CharField(max_length=15, choices=ORIGINE_CHOICES, default="inspection")
+    gravite = models.CharField("gravité", max_length=10, choices=GRAVITE_CHOICES, default="mineure")
+    statut = models.CharField(max_length=15, choices=STATUT_CHOICES, default="ouverte")
+    date_detection = models.DateField("date de détection", default=date.today)
+    detecte_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="nc_detectees", verbose_name="détectée par",
+    )
+    action_corrective = models.TextField("action corrective", blank=True)
+    responsable_action = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="nc_a_traiter", verbose_name="responsable de l'action",
+    )
+    date_echeance = models.DateField("échéance de correction", null=True, blank=True)
+    date_cloture = models.DateField("date de clôture", null=True, blank=True)
+    ordre_travail = models.ForeignKey(
+        OrdreTravail, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="non_conformites", verbose_name="ordre de travail associé",
+    )
+
+    class Meta:
+        verbose_name = "non-conformité"
+        verbose_name_plural = "non-conformités"
+        ordering = ["-date_detection"]
+
+    def save(self, *args, **kwargs):
+        if self.equipement_id and not self.lot_id and self.equipement.lot_id:
+            self.lot_id = self.equipement.lot_id
+        if self.statut == "cloturee" and not self.date_cloture:
+            self.date_cloture = date.today()
+        super().save(*args, **kwargs)
+        if not self.reference:
+            self.reference = f"NC-{self.pk:04d}"
+            super().save(update_fields=["reference"])
+
+    def __str__(self):
+        return f"{self.reference} - {self.titre}"
