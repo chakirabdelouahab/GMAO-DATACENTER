@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ordres de travail</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    body { font-family: Arial, sans-serif; color: #000; margin: 0; font-size: 13px; }
+    .barre { padding: 12px 20px; background: #f1f5f8; border-bottom: 1px solid #ccc; }
+    .barre button { padding: 8px 16px; font-size: 14px; background: #417690; color: #fff; border: none; cursor: pointer; }
+    .page { padding: 16px 20px; break-after: page; page-break-after: always; }
+    .page:last-child { break-after: auto; page-break-after: auto; }
+    h1 { font-size: 20px; margin: 0 0 4px 0; }
+    .sous-titre { color: #444; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { background: #e8e8e8; width: 18%; }
+    h2 { font-size: 14px; margin: 14px 0 4px 0; }
+    .zone { border: 1px solid #000; min-height: 90px; padding: 6px; margin-bottom: 8px; }
+    .zone.grande { min-height: 150px; }
+    .signatures td { height: 70px; width: 50%; }
+    .vide { padding: 24px; color: #666; }
+    @media print { .barre { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="barre">
+    <button onclick="window.print()">Imprimer</button>
+    &nbsp; {{ ordres|length }} ordre(s) de travail &nbsp;|&nbsp;
+    <a href="{% url 'tableau_de_bord' %}">Retour au tableau de bord</a>
+  </div>
+
+  {% for o in ordres %}
+    <div class="page">
+      <h1>ORDRE DE TRAVAIL N° OT-{{ o.id|stringformat:"05d" }}</h1>
+      <div class="sous-titre">{{ o.titre }}</div>
+
+      <table>
+        <tr>
+          <th>Type</th><td>{{ o.get_type_ordre_display }}</td>
+          <th>Priorité</th><td>{{ o.get_priorite_display }}</td>
+        </tr>
+        <tr>
+          <th>Statut</th><td>{{ o.get_statut_display }}</td>
+          <th>Date prévue</th><td>{{ o.date_prevue|date:"d/m/Y"|default:"-" }}</td>
+        </tr>
+        <tr>
+          <th>Équipement</th><td>{{ o.equipement.nom }}</td>
+          <th>Lot</th><td>{{ o.equipement.lot|default:"-" }}</td>
+        </tr>
+        <tr>
+          <th>Local</th><td>{{ o.equipement.local|default:"-" }}</td>
+          <th>Quantité</th><td>{{ o.equipement.quantite }}</td>
+        </tr>
+        <tr>
+          <th>Marque / modèle</th><td>{{ o.equipement.marque|default:"-" }} {{ o.equipement.modele }}</td>
+          <th>N° de série</th><td>{{ o.equipement.numero_serie|default:"-" }}</td>
+        </tr>
+        <tr>
+          <th>Criticité</th><td>{{ o.equipement.get_criticite_display }}</td>
+          <th>Technicien</th><td>{{ o.technicien|default:"" }}</td>
+        </tr>
+        <tr>
+          <th>Tâche du plan</th><td colspan="3">{{ o.plan.tache|default:"-" }}</td>
+        </tr>
+      </table>
+
+      <h2>Description / consignes</h2>
+      <div class="zone">{{ o.description|linebreaksbr }}</div>
+
+      <h2>Travaux réalisés / observations</h2>
+      <div class="zone grande"></div>
+
+      <h2>Pièces et consommables utilisés</h2>
+      <div class="zone"></div>
+
+      <table>
+        <tr>
+          <th>Date d'intervention</th><td></td>
+          <th>Heure début / fin</th><td></td>
+        </tr>
+        <tr>
+          <th>Non-conformité constatée</th><td>☐ Non &nbsp; ☐ Oui, n° : ____________</td>
+          <th>Équipement remis en service</th><td>☐ Oui &nbsp; ☐ Non</td>
+        </tr>
+      </table>
+
+      <table class="signatures">
+        <tr>
+          <td><strong>Technicien</strong> (nom et signature)</td>
+          <td><strong>Responsable</strong> (visa)</td>
+        </tr>
+      </table>
+    </div>
+  {% empty %}
+    <p class="vide">Aucun ordre de travail à imprimer.</p>
+  {% endfor %}
+</body>
+</html>

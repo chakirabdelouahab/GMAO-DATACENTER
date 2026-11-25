@@ -22,7 +22,7 @@
 </head>
 <body>
   <h1>Tableau de bord</h1>
-  <div class="menu"><a href="{% url 'liste_equipements' %}">Liste des équipements</a> | <a href="{% url 'admin:index' %}">Administration</a></div>
+    <div class="menu"><a href="{% url 'liste_equipements' %}">Liste des équipements</a> | <a href="{% url 'admin:index' %}">Administration</a> | <a href="{% url 'imprimer_ordres' %}" target="_blank">Imprimer les ordres à traiter</a></div>
 
   <div class="cartes">
     <div class="carte"><div class="nombre">{{ nb_ouverts }}</div>Ordres ouverts</div>

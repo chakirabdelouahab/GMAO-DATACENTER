@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from django.http import HttpResponseRedirect
+from django.urls import reverse
 from .models import Equipement, Local, Lot, NonConformite, OrdreTravail, PlanMaintenance
 
 admin.site.register(Local)
@@ -31,6 +33,12 @@ class OrdreTravailAdmin(admin.ModelAdmin):
     list_display = ("titre", "equipement", "type_ordre", "priorite", "statut", "date_prevue")
     list_filter = ("type_ordre", "priorite", "statut")
     search_fields = ("titre", "equipement__nom")
+    actions = ["imprimer_selection"]
+
+    @admin.action(description="Imprimer les ordres sélectionnés")
+    def imprimer_selection(self, request, queryset):
+        ids = ",".join(str(pk) for pk in queryset.values_list("pk", flat=True))
+        return HttpResponseRedirect(f"{reverse('imprimer_ordres')}?ids={ids}")
 
 
 @admin.register(NonConformite)

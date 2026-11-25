@@ -82,3 +82,33 @@ def fiche_equipement(request, pk):
         "sous_equipements": equipement.sous_equipements.order_by("nom"),
     }
     return render(request, "maintenance/fiche_equipement.html", contexte)
+
+@login_required
+def imprimer_ordre(request, pk):
+    ordre = get_object_or_404(
+        OrdreTravail.objects.select_related(
+            "equipement", "equipement__local", "equipement__lot", "plan", "technicien"
+        ),
+        pk=pk,
+    )
+    return render(request, "maintenance/imprimer_ordres.html", {"ordres": [ordre]})
+
+
+@login_required
+def imprimer_ordres(request):
+    ordres = OrdreTravail.objects.select_related(
+        "equipement", "equipement__local", "equipement__lot", "plan", "technicien"
+    )
+    ids = request.GET.get("ids", "")
+    if ids:
+        liste = [int(i) for i in ids.split(",") if i.isdigit()]
+        ordres = ordres.filter(pk__in=liste)
+    else:
+        jours = request.GET.get("jours", "14")
+        jours = int(jours) if jours.isdigit() else 14
+        horizon = date.today() + timedelta(days=jours)
+        ordres = ordres.filter(statut__in=["ouvert", "en_cours"]).filter(
+            Q(date_prevue__lte=horizon) | Q(date_prevue__isnull=True)
+        )
+    ordres = ordres.order_by("date_prevue", "equipement__nom")
+    return render(request, "maintenance/imprimer_ordres.html", {"ordres": ordres})
