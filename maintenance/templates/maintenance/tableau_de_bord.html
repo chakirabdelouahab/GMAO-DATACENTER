@@ -22,13 +22,15 @@
 </head>
 <body>
   <h1>Tableau de bord</h1>
-    <div class="menu"><a href="{% url 'liste_equipements' %}">Liste des équipements</a> | <a href="{% url 'admin:index' %}">Administration</a> | <a href="{% url 'imprimer_ordres' %}" target="_blank">Imprimer les ordres à traiter</a></div>
+      <div class="menu"><a href="{% url 'liste_equipements' %}">Liste des équipements</a> | <a href="{% url 'admin:index' %}">Administration</a> | <a href="{% url 'imprimer_ordres' %}" target="_blank">Imprimer les ordres à traiter</a> | <a href="{% url 'admin:maintenance_nonconformite_add' %}">Déclarer une non-conformité</a></div>
 
   <div class="cartes">
     <div class="carte"><div class="nombre">{{ nb_ouverts }}</div>Ordres ouverts</div>
     <div class="carte"><div class="nombre">{{ nb_en_cours }}</div>En cours</div>
     <div class="carte retard"><div class="nombre">{{ nb_en_retard }}</div>En retard</div>
     <div class="carte avenir"><div class="nombre">{{ nb_a_venir }}</div>À venir (14 jours)</div>
+    <div class="carte"><div class="nombre">{{ nb_nc_ouvertes }}</div>Non-conformités ouvertes</div>
+    <div class="carte retard"><div class="nombre">{{ nb_nc_critiques }}</div>dont critiques</div>
   </div>
 
   <h2>Ordres en retard</h2>
@@ -95,7 +97,31 @@
   {% else %}
     <p class="vide">Aucun ordre actif sans date.</p>
   {% endif %}
-
+  <h2>Non-conformités ouvertes</h2>
+  {% if nc_ouvertes %}
+    <table>
+      <thead><tr><th>Réf.</th><th>Titre</th><th>Lot</th><th>Équipement</th><th>Gravité</th><th>Statut</th><th>Échéance</th></tr></thead>
+      <tbody>
+        {% for n in nc_ouvertes %}
+          <tr>
+            <td>{{ n.reference }}</td>
+            <td><a href="{% url 'admin:maintenance_nonconformite_change' n.id %}">{{ n.titre }}</a></td>
+            <td>{{ n.lot.code|default:"-" }}</td>
+            <td>{% if n.equipement %}<a href="{% url 'fiche_equipement' n.equipement.id %}">{{ n.equipement }}</a>{% else %}-{% endif %}</td>
+            <td style="font-weight:bold;{% if n.gravite == 'critique' %}color:#b00020;{% endif %}">{{ n.get_gravite_display }}</td>
+            <td>{{ n.get_statut_display }}</td>
+            <td>
+              {% if n.date_echeance %}
+                {% if n.date_echeance < aujourdhui %}<strong style="color:#b00020;">{{ n.date_echeance|date:"d/m/Y" }} (dépassée)</strong>{% else %}{{ n.date_echeance|date:"d/m/Y" }}{% endif %}
+              {% else %}-{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="vide">Aucune non-conformité ouverte.</p>
+  {% endif %}
   <h2>Équipements non en service</h2>
   {% if equipements_alerte %}
     <table>

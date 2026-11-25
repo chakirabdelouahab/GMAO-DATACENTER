@@ -4,14 +4,15 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
 
-from .models import Equipement, Local, OrdreTravail
+from .models import Equipement, Local, Lot, NonConformite, OrdreTravail
 
 
 @login_required
 def liste_equipements(request):
-    equipements = Equipement.objects.select_related("local").order_by("nom")
+    equipements = Equipement.objects.select_related("local", "lot").order_by("nom")
 
     recherche = request.GET.get("q", "").strip()
+    lot_id = request.GET.get("lot", "")
     local_id = request.GET.get("local", "")
     criticite = request.GET.get("criticite", "")
     statut = request.GET.get("statut", "")
@@ -22,7 +23,10 @@ def liste_equipements(request):
             | Q(marque__icontains=recherche)
             | Q(modele__icontains=recherche)
             | Q(numero_serie__icontains=recherche)
+            | Q(type_equipement__icontains=recherche)
         )
+    if lot_id:
+        equipements = equipements.filter(lot_id=lot_id)
     if local_id:
         equipements = equipements.filter(local_id=local_id)
     if criticite:
@@ -32,15 +36,18 @@ def liste_equipements(request):
 
     contexte = {
         "equipements": equipements,
+        "lots": Lot.objects.order_by("code"),
         "locaux": Local.objects.order_by("nom"),
         "criticite_choices": Equipement.CRITICITE_CHOICES,
         "statut_choices": Equipement.STATUT_CHOICES,
         "recherche": recherche,
+        "lot_id": lot_id,
         "local_id": local_id,
         "criticite": criticite,
         "statut": statut,
     }
     return render(request, "maintenance/liste_equipements.html", contexte)
+
 
 @login_required
 def tableau_de_bord(request):
@@ -57,7 +64,15 @@ def tableau_de_bord(request):
     ).order_by("date_prevue")
     sans_date = actifs.filter(date_prevue__isnull=True).order_by("-date_creation")
 
+    # Tri sur la gravité : l'ordre alphabétique donne critique, majeure, mineure.
+    nc_ouvertes = (
+        NonConformite.objects.filter(statut__in=["ouverte", "en_traitement"])
+        .select_related("equipement", "lot")
+        .order_by("gravite", "date_echeance")
+    )
+
     contexte = {
+        "aujourdhui": aujourdhui,
         "nb_ouverts": OrdreTravail.objects.filter(statut="ouvert").count(),
         "nb_en_cours": OrdreTravail.objects.filter(statut="en_cours").count(),
         "nb_en_retard": en_retard.count(),
@@ -65,6 +80,9 @@ def tableau_de_bord(request):
         "en_retard": en_retard,
         "a_venir": a_venir,
         "sans_date": sans_date,
+        "nb_nc_ouvertes": nc_ouvertes.count(),
+        "nb_nc_critiques": nc_ouvertes.filter(gravite="critique").count(),
+        "nc_ouvertes": nc_ouvertes,
         "equipements_alerte": Equipement.objects.filter(
             statut__in=["panne", "veille", "hors_service"]
         ).select_related("local").order_by("statut", "nom"),
@@ -74,14 +92,18 @@ def tableau_de_bord(request):
 
 @login_required
 def fiche_equipement(request, pk):
-    equipement = get_object_or_404(Equipement.objects.select_related("local", "parent"), pk=pk)
+    equipement = get_object_or_404(
+        Equipement.objects.select_related("local", "lot", "parent"), pk=pk
+    )
     contexte = {
         "equipement": equipement,
         "plans": equipement.plans.order_by("tache"),
         "ordres": equipement.ordres.select_related("technicien").order_by("-date_creation"),
         "sous_equipements": equipement.sous_equipements.order_by("nom"),
+        "non_conformites": equipement.non_conformites.order_by("-date_detection"),
     }
     return render(request, "maintenance/fiche_equipement.html", contexte)
+
 
 @login_required
 def imprimer_ordre(request, pk):

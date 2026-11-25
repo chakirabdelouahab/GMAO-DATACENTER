@@ -31,7 +31,9 @@
   <h1>{{ equipement.nom }}</h1>
 
   <dl>
+        <dt>Lot</dt><dd>{{ equipement.lot|default:"-" }}</dd>
     <dt>Local</dt><dd>{{ equipement.local|default:"-" }}</dd>
+    <dt>Quantité</dt><dd>{{ equipement.quantite }}</dd>
     <dt>Type</dt><dd>{{ equipement.type_equipement|default:"-" }}</dd>
     <dt>Marque</dt><dd>{{ equipement.marque|default:"-" }}</dd>
     <dt>Modèle</dt><dd>{{ equipement.modele|default:"-" }}</dd>
@@ -81,7 +83,30 @@
   {% else %}
     <p class="vide">Aucun plan de maintenance.</p>
   {% endif %}
-
+  <h2>Non-conformités</h2>
+  <p><a href="{% url 'admin:maintenance_nonconformite_add' %}?equipement={{ equipement.id }}">+ Déclarer une non-conformité sur cet équipement</a></p>
+  {% if non_conformites %}
+    <table>
+      <thead>
+        <tr><th>Réf.</th><th>Titre</th><th>Gravité</th><th>Statut</th><th>Détectée le</th><th>Échéance</th><th>Clôturée le</th></tr>
+      </thead>
+      <tbody>
+        {% for n in non_conformites %}
+          <tr>
+            <td>{{ n.reference }}</td>
+            <td><a href="{% url 'admin:maintenance_nonconformite_change' n.id %}">{{ n.titre }}</a></td>
+            <td>{{ n.get_gravite_display }}</td>
+            <td>{{ n.get_statut_display }}</td>
+            <td>{{ n.date_detection|date:"d/m/Y" }}</td>
+            <td>{{ n.date_echeance|date:"d/m/Y"|default:"-" }}</td>
+            <td>{{ n.date_cloture|date:"d/m/Y"|default:"-" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="vide">Aucune non-conformité pour cet équipement.</p>
+  {% endif %}
   <h2>Historique des ordres de travail</h2>
   {% if ordres %}
     <table>

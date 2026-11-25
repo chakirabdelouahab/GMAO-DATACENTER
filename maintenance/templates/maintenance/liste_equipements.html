@@ -20,11 +20,18 @@
   </style>
 </head>
 <body>
-    <h1>Équipements</h1>
+  <h1>Équipements</h1>
   <p><a href="{% url 'tableau_de_bord' %}">&larr; Tableau de bord</a></p>
 
   <form method="get">
-    <input type="text" name="q" placeholder="Nom, marque, modèle, n° de série" value="{{ recherche }}">
+    <input type="text" name="q" placeholder="Nom, type, marque, modèle, n° de série" value="{{ recherche }}">
+
+    <select name="lot">
+      <option value="">Tous les lots</option>
+      {% for l in lots %}
+        <option value="{{ l.id }}" {% if lot_id == l.id|stringformat:"s" %}selected{% endif %}>{{ l.code }} - {{ l.nom }}</option>
+      {% endfor %}
+    </select>
 
     <select name="local">
       <option value="">Tous les locaux</option>
@@ -57,11 +64,12 @@
     <thead>
       <tr>
         <th>Nom</th>
+        <th>Lot</th>
+        <th>Qté</th>
         <th>Local</th>
         <th>Type</th>
         <th>Marque</th>
         <th>Modèle</th>
-        <th>N° de série</th>
         <th>Criticité</th>
         <th>Statut</th>
         <th></th>
@@ -70,18 +78,19 @@
     <tbody>
       {% for e in equipements %}
         <tr>
-          <td>{{ e.nom }}</td>
+          <td><a href="{% url 'fiche_equipement' e.id %}">{{ e.nom }}</a></td>
+          <td>{{ e.lot.code|default:"-" }}</td>
+          <td>{{ e.quantite }}</td>
           <td>{{ e.local|default:"-" }}</td>
           <td>{{ e.type_equipement|default:"-" }}</td>
           <td>{{ e.marque|default:"-" }}</td>
           <td>{{ e.modele|default:"-" }}</td>
-          <td>{{ e.numero_serie|default:"-" }}</td>
           <td class="crit-{{ e.criticite }}">{{ e.get_criticite_display }}</td>
           <td>{{ e.get_statut_display }}</td>
           <td><a href="{% url 'admin:maintenance_equipement_change' e.id %}">Modifier</a></td>
         </tr>
       {% empty %}
-        <tr><td colspan="9" class="vide">Aucun équipement ne correspond à la recherche.</td></tr>
+        <tr><td colspan="10" class="vide">Aucun équipement ne correspond à la recherche.</td></tr>
       {% endfor %}
     </tbody>
   </table>
