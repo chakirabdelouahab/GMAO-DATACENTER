@@ -63,13 +63,13 @@
   {% if plans %}
     <table>
       <thead>
-        <tr><th>Tâche</th><th>Périodicité (jours)</th><th>Durée estimée (h)</th><th>Dernière réalisation</th><th>Prochaine échéance</th><th>Actif</th></tr>
+        <tr><th>Tâche</th><th>Périodicité</th><th>Durée estimée (h)</th><th>Dernière réalisation</th><th>Prochaine échéance</th><th>Actif</th></tr>
       </thead>
       <tbody>
         {% for p in plans %}
           <tr>
             <td>{{ p.tache }}</td>
-            <td>{{ p.periodicite_jours }}</td>
+            <td>{{p.get_periodicite_jours_display }}</td>
             <td>{{ p.duree_estimee_heures|default:"-" }}</td>
             <td>{{ p.derniere_realisation|date:"d/m/Y"|default:"-" }}</td>
             <td>{{ p.prochaine_echeance|date:"d/m/Y" }}</td>

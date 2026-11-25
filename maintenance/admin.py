@@ -25,7 +25,7 @@ class PlanMaintenanceAdmin(admin.ModelAdmin):
         "equipement", "tache", "periodicite_jours",
         "derniere_realisation", "prochaine_echeance", "actif",
     )
-    list_filter = ("actif",)
+    list_filter = ("actif", "periodicite_jours")
 
 
 @admin.register(OrdreTravail)

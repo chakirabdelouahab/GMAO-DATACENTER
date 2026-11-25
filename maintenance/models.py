@@ -75,15 +75,22 @@ class Equipement(models.Model):
 
 
 class PlanMaintenance(models.Model):
+    PERIODICITE_CHOICES = [
+        (7, "Hebdomadaire"),
+        (30, "Mensuelle"),
+        (90, "Trimestrielle"),
+        (180, "Semestrielle"),
+        (365, "Annuelle"),
+    ]
+
     equipement = models.ForeignKey(Equipement, on_delete=models.CASCADE, related_name="plans")
     tache = models.CharField("tâche", max_length=200)
-    periodicite_jours = models.PositiveIntegerField("périodicité (jours)")
+    periodicite_jours = models.PositiveIntegerField("périodicité", choices=PERIODICITE_CHOICES)
     duree_estimee_heures = models.DecimalField(
         "durée estimée (h)", max_digits=5, decimal_places=1, null=True, blank=True
     )
     derniere_realisation = models.DateField(null=True, blank=True)
     actif = models.BooleanField(default=True)
-    
     premiere_echeance = models.DateField("première échéance", null=True, blank=True)
 
     class Meta:
