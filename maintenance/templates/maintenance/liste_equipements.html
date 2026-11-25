@@ -1,29 +1,10 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Équipements - GMAO</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 24px; color: #222; }
-    h1 { margin-bottom: 16px; }
-    form { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-    input, select, button { padding: 6px 8px; font-size: 14px; }
-    button { background: #417690; color: white; border: none; cursor: pointer; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
-    th { background: #417690; color: white; }
-    tr:nth-child(even) { background: #f6f6f6; }
-    .crit-critique { color: #b00020; font-weight: bold; }
-    .crit-elevee { color: #d97706; font-weight: bold; }
-    .vide { padding: 16px; color: #666; }
-  </style>
-</head>
-<body>
-  <h1>Équipements</h1>
-  <p><a href="{% url 'tableau_de_bord' %}">&larr; Tableau de bord</a></p>
+{% extends "maintenance/base.html" %}
+{% block titre %}Équipements{% endblock %}
 
-  <form method="get">
+{% block contenu %}
+  <h1>Équipements</h1>
+
+  <form method="get" class="filtres">
     <input type="text" name="q" placeholder="Nom, type, marque, modèle, n° de série" value="{{ recherche }}">
 
     <select name="lot">
@@ -54,25 +35,17 @@
       {% endfor %}
     </select>
 
-    <button type="submit">Filtrer</button>
+    <button type="submit" class="btn">Filtrer</button>
     <a href="{% url 'liste_equipements' %}" style="align-self:center;">Réinitialiser</a>
   </form>
 
   <p>{{ equipements|length }} équipement(s)</p>
 
-  <table>
+  <div class="table-scroll"><table>
     <thead>
       <tr>
-        <th>Nom</th>
-        <th>Lot</th>
-        <th>Qté</th>
-        <th>Local</th>
-        <th>Type</th>
-        <th>Marque</th>
-        <th>Modèle</th>
-        <th>Criticité</th>
-        <th>Statut</th>
-        <th></th>
+        <th>Nom</th><th>Lot</th><th>Qté</th><th>Local</th><th>Type</th>
+        <th>Marque</th><th>Modèle</th><th>Criticité</th><th>Statut</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -93,6 +66,5 @@
         <tr><td colspan="10" class="vide">Aucun équipement ne correspond à la recherche.</td></tr>
       {% endfor %}
     </tbody>
-  </table>
-</body>
-</html>
+  </table></div>
+{% endblock %}

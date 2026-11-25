@@ -1,8 +1,11 @@
 from django.contrib import admin
-
 from django.http import HttpResponseRedirect
 from django.urls import reverse
-from .models import Equipement, Local, Lot, NonConformite, OrdreTravail, PlanMaintenance
+
+from .models import (
+    Equipement, Local, Lot, NonConformite, OrdreTravail, PlanMaintenance,
+    PointControle, Releve, Ronde, RondeRealisee,
+)
 
 admin.site.register(Local)
 
@@ -14,9 +17,9 @@ class LotAdmin(admin.ModelAdmin):
 
 @admin.register(Equipement)
 class EquipementAdmin(admin.ModelAdmin):
-    list_display = ("nom", "lot", "local", "marque", "modele", "criticite", "statut")
+    list_display = ("nom", "lot", "local", "quantite", "marque", "modele", "criticite", "statut")
     list_filter = ("lot", "local", "criticite", "statut")
-    search_fields = ("nom", "numero_serie", "marque", "modele")
+    search_fields = ("nom", "numero_serie", "marque", "modele", "type_equipement")
 
 
 @admin.register(PlanMaintenance)
@@ -54,4 +57,40 @@ class NonConformiteAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         if not change and not obj.detecte_par_id:
             obj.detecte_par = request.user
+        super().save_model(request, obj, form, change)
+
+
+class PointControleInline(admin.TabularInline):
+    model = PointControle
+    extra = 1
+    fields = ("ordre", "libelle", "equipement", "type_releve", "unite", "seuil_min", "seuil_max", "actif")
+
+
+@admin.register(Ronde)
+class RondeAdmin(admin.ModelAdmin):
+    list_display = ("nom", "lot", "local", "frequence", "actif")
+    list_filter = ("lot", "frequence", "actif")
+    inlines = [PointControleInline]
+
+
+class ReleveInline(admin.TabularInline):
+    model = Releve
+    extra = 0
+    fields = ("point", "valeur", "etat_ok", "commentaire", "conforme")
+    readonly_fields = ("conforme",)
+
+
+@admin.register(RondeRealisee)
+class RondeRealiseeAdmin(admin.ModelAdmin):
+    list_display = ("ronde", "date_realisation", "intervenant", "statut", "nb_hors_seuil")
+    list_filter = ("ronde", "statut")
+    inlines = [ReleveInline]
+
+    @admin.display(description="Hors seuil")
+    def nb_hors_seuil(self, obj):
+        return obj.releves.filter(conforme=False).count()
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.intervenant_id:
+            obj.intervenant = request.user
         super().save_model(request, obj, form, change)

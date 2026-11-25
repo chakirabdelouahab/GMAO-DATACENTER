@@ -1,0 +1,144 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titre %}Accueil{% endblock %} - GMAO GBS DC</title>
+  <style>
+    :root {
+      --accent: #417690;
+      --menu-fond: #ece4e4;
+      --menu-survol: #e0d5d5;
+      --menu-texte: #444;
+      --menu-rouge: #b31b1b;
+      --menu-puce: #8b1a1a;
+      --menu-ligne: #d6cbcb;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #222; display: flex; min-height: 100vh; }
+
+    /* Menu latéral */
+    .menu { width: 270px; flex-shrink: 0; background: var(--menu-fond); border-right: 1px solid var(--menu-ligne); display: flex; flex-direction: column; }
+    .menu .marque { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--menu-ligne); font-weight: bold; color: var(--menu-puce); text-decoration: none; }
+    .menu .marque img { height: 34px; width: auto; }
+    .menu details { border-bottom: 1px solid var(--menu-ligne); }
+    .menu summary, .menu > a.simple { display: flex; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; color: var(--menu-texte); text-decoration: none; list-style: none; font-size: 15px; border-bottom: 1px solid var(--menu-ligne); }
+    .menu details > summary { border-bottom: none; }
+    .menu summary::-webkit-details-marker { display: none; }
+    .menu summary::after { content: ""; margin-left: auto; width: 7px; height: 7px; border-right: 2px solid #777; border-bottom: 2px solid #777; transform: rotate(45deg); transition: transform .15s; }
+    .menu details[open] > summary::after { transform: rotate(-135deg); }
+    .menu summary:hover, .menu > a.simple:hover, .menu .sous a:hover { background: var(--menu-survol); }
+    .menu .sous a { display: block; position: relative; padding: 12px 16px 12px 40px; color: var(--menu-texte); text-decoration: none; font-size: 15px; border-top: 1px solid var(--menu-ligne); }
+    .menu .sous a::before { content: ""; position: absolute; left: 20px; top: 50%; margin-top: -5px; border-left: 7px solid var(--menu-puce); border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+    .menu .actif { background: var(--menu-survol); font-weight: bold; }
+    .ico { width: 18px; height: 18px; color: var(--menu-rouge); flex-shrink: 0; }
+    .menu .utilisateur { margin-top: auto; padding: 14px 16px; font-size: 13px; color: var(--menu-texte); border-top: 1px solid var(--menu-ligne); }
+    .menu .utilisateur button { background: none; border: none; padding: 0; margin-top: 6px; color: var(--menu-puce); cursor: pointer; text-decoration: underline; font-size: 13px; }
+
+    /* Contenu */
+    .contenu { flex: 1; padding: 24px; min-width: 0; }
+    h1 { margin: 0 0 16px 0; }
+    h2 { margin-top: 32px; border-bottom: 2px solid var(--accent); padding-bottom: 4px; }
+    a { color: #1d5d8a; }
+    .table-scroll { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
+    th { background: var(--accent); color: #fff; }
+    tr:nth-child(even) { background: #f6f6f6; }
+    .vide { color: #666; padding: 8px 0; }
+    .crit-critique { color: #b00020; font-weight: bold; }
+    .crit-elevee { color: #d97706; font-weight: bold; }
+    .cartes { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+    .carte { flex: 1; min-width: 150px; padding: 16px; border-radius: 6px; background: #f1f5f8; text-align: center; }
+    .carte .nombre { font-size: 32px; font-weight: bold; }
+    .carte.retard { background: #fdecea; color: #b00020; }
+    .carte.avenir { background: #fff4e0; color: #b45309; }
+    form.filtres { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    input, select, button.btn { padding: 6px 8px; font-size: 14px; }
+    button.btn { background: var(--accent); color: #fff; border: none; cursor: pointer; }
+    dl { display: grid; grid-template-columns: 200px 1fr; gap: 6px 16px; }
+    dt { font-weight: bold; }
+    dd { margin: 0; }
+
+    @media (max-width: 800px) {
+      body { flex-direction: column; }
+      .menu { width: 100%; }
+      dl { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  {% with nom=request.resolver_match.url_name %}
+  <nav class="menu">
+    <a class="marque" href="{% url 'tableau_de_bord' %}">
+      <img src="{% static 'maintenance/logo.jpeg' %}" alt="Logo">
+      <span>GMAO GBS DC</span>
+    </a>
+
+    <a class="simple {% if nom == 'tableau_de_bord' %}actif{% endif %}" href="{% url 'tableau_de_bord' %}">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Tableau de bord
+    </a>
+
+    <details {% if nom == 'liste_equipements' or nom == 'fiche_equipement' %}open{% endif %}>
+      <summary>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        Maintenance
+      </summary>
+      <div class="sous">
+        <a class="{% if nom == 'liste_equipements' or nom == 'fiche_equipement' %}actif{% endif %}" href="{% url 'liste_equipements' %}">Équipements</a>
+        <a href="{% url 'admin:maintenance_ordretravail_changelist' %}">Ordres de travail</a>
+        <a href="{% url 'admin:maintenance_planmaintenance_changelist' %}">Plans de maintenance</a>
+        <a href="{% url 'imprimer_ordres' %}" target="_blank">Imprimer les ordres à traiter</a>
+      </div>
+    </details>
+
+    <details>
+      <summary>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Non-conformités
+      </summary>
+      <div class="sous">
+        <a href="{% url 'admin:maintenance_nonconformite_changelist' %}">Liste des non-conformités</a>
+        <a href="{% url 'admin:maintenance_nonconformite_add' %}">Déclarer une non-conformité</a>
+      </div>
+    </details>
+
+    <details>
+      <summary>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+        Rondes techniques
+      </summary>
+      <div class="sous">
+        <a href="{% url 'admin:maintenance_ronderealisee_changelist' %}">Rondes réalisées</a>
+        <a href="{% url 'admin:maintenance_ronde_changelist' %}">Modèles de rondes</a>
+      </div>
+    </details>
+
+    {% if user.is_staff %}
+    <details>
+      <summary>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Administration
+      </summary>
+      <div class="sous">
+        <a href="{% url 'admin:index' %}">Administration</a>
+        <a href="{% url 'admin:maintenance_lot_changelist' %}">Lots techniques</a>
+        <a href="{% url 'admin:maintenance_local_changelist' %}">Locaux</a>
+        <a href="{% url 'admin:auth_user_changelist' %}">Utilisateurs</a>
+      </div>
+    </details>
+    {% endif %}
+
+    <div class="utilisateur">
+      Connecté : <strong>{{ user.get_username }}</strong>
+      <form method="post" action="{% url 'admin:logout' %}">{% csrf_token %}<button type="submit">Déconnexion</button></form>
+    </div>
+  </nav>
+  {% endwith %}
+
+  <main class="contenu">
+    {% block contenu %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+from django.utils import timezone
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -221,3 +222,114 @@ class NonConformite(models.Model):
 
     def __str__(self):
         return f"{self.reference} - {self.titre}"
+
+
+    
+
+class Ronde(models.Model):
+    FREQUENCE_CHOICES = [
+        ("quotidienne", "Quotidienne"),
+        ("hebdomadaire", "Hebdomadaire"),
+        ("mensuelle", "Mensuelle"),
+    ]
+
+    nom = models.CharField(max_length=150)
+    lot = models.ForeignKey(Lot, on_delete=models.SET_NULL, null=True, blank=True)
+    local = models.ForeignKey(Local, on_delete=models.SET_NULL, null=True, blank=True)
+    frequence = models.CharField("fréquence", max_length=15, choices=FREQUENCE_CHOICES, default="quotidienne")
+    consignes = models.TextField(blank=True)
+    actif = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "ronde technique"
+        verbose_name_plural = "rondes techniques"
+        ordering = ["nom"]
+
+    def __str__(self):
+        return self.nom
+
+
+class PointControle(models.Model):
+    TYPE_CHOICES = [
+        ("mesure", "Mesure (valeur numérique)"),
+        ("etat", "État (OK / NOK)"),
+        ("observation", "Observation (texte)"),
+    ]
+
+    ronde = models.ForeignKey(Ronde, on_delete=models.CASCADE, related_name="points")
+    ordre = models.PositiveIntegerField(default=1)
+    libelle = models.CharField("libellé", max_length=200)
+    equipement = models.ForeignKey(
+        Equipement, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="points_controle", verbose_name="équipement",
+    )
+    type_releve = models.CharField("type de relevé", max_length=12, choices=TYPE_CHOICES, default="mesure")
+    unite = models.CharField("unité", max_length=20, blank=True)
+    seuil_min = models.DecimalField("seuil mini", max_digits=12, decimal_places=3, null=True, blank=True)
+    seuil_max = models.DecimalField("seuil maxi", max_digits=12, decimal_places=3, null=True, blank=True)
+    actif = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "point de contrôle"
+        verbose_name_plural = "points de contrôle"
+        ordering = ["ronde", "ordre"]
+
+    def __str__(self):
+        return f"{self.ronde} - {self.libelle}"
+
+
+class RondeRealisee(models.Model):
+    STATUT_CHOICES = [("en_cours", "En cours"), ("terminee", "Terminée")]
+
+    ronde = models.ForeignKey(Ronde, on_delete=models.PROTECT, related_name="realisations")
+    date_realisation = models.DateTimeField("date de réalisation", default=timezone.now)
+    intervenant = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    statut = models.CharField(max_length=10, choices=STATUT_CHOICES, default="en_cours")
+    observations = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "ronde réalisée"
+        verbose_name_plural = "rondes réalisées"
+        ordering = ["-date_realisation"]
+
+    def __str__(self):
+        return f"{self.ronde} - {self.date_realisation:%d/%m/%Y %H:%M}"
+
+
+class Releve(models.Model):
+    ronde_realisee = models.ForeignKey(RondeRealisee, on_delete=models.CASCADE, related_name="releves")
+    point = models.ForeignKey(PointControle, on_delete=models.PROTECT, related_name="releves")
+    valeur = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    etat_ok = models.BooleanField("état OK", null=True, blank=True)
+    commentaire = models.CharField(max_length=300, blank=True)
+    conforme = models.BooleanField(default=True, editable=False)
+
+    class Meta:
+        verbose_name = "relevé"
+        verbose_name_plural = "relevés"
+        constraints = [
+            models.UniqueConstraint(fields=["ronde_realisee", "point"], name="un_releve_par_point"),
+        ]
+
+    def evaluer(self):
+        point = self.point
+        if point.type_releve == "mesure":
+            if self.valeur is None:
+                return True
+            if point.seuil_min is not None and self.valeur < point.seuil_min:
+                return False
+            if point.seuil_max is not None and self.valeur > point.seuil_max:
+                return False
+            return True
+        if point.type_releve == "etat":
+            return self.etat_ok is not False
+        return True
+
+    def save(self, *args, **kwargs):
+        self.conforme = self.evaluer()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.point.libelle} : {self.valeur if self.valeur is not None else self.etat_ok}"
