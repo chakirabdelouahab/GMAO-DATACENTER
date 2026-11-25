@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 from django.utils import timezone
 from django.conf import settings
@@ -227,6 +227,11 @@ class NonConformite(models.Model):
     
 
 class Ronde(models.Model):
+    CATEGORIE_CHOICES = [
+        ("technique", "Technique (relevés et mesures)"),
+        ("passage", "Passage (contrôle visuel)"),
+        ("ambiance", "Ambiance"),
+    ]
     FREQUENCE_CHOICES = [
         ("quotidienne", "Quotidienne"),
         ("hebdomadaire", "Hebdomadaire"),
@@ -234,8 +239,14 @@ class Ronde(models.Model):
     ]
 
     nom = models.CharField(max_length=150)
+    categorie = models.CharField("catégorie", max_length=10, choices=CATEGORIE_CHOICES, default="technique")
     lot = models.ForeignKey(Lot, on_delete=models.SET_NULL, null=True, blank=True)
     local = models.ForeignKey(Local, on_delete=models.SET_NULL, null=True, blank=True)
+    equipement = models.ForeignKey(
+        Equipement, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="rondes", verbose_name="équipement",
+    )
+    horaire = models.TimeField(default=time(9, 0))
     frequence = models.CharField("fréquence", max_length=15, choices=FREQUENCE_CHOICES, default="quotidienne")
     consignes = models.TextField(blank=True)
     actif = models.BooleanField(default=True)
@@ -243,7 +254,7 @@ class Ronde(models.Model):
     class Meta:
         verbose_name = "ronde technique"
         verbose_name_plural = "rondes techniques"
-        ordering = ["nom"]
+        ordering = ["categorie", "nom"]
 
     def __str__(self):
         return self.nom

@@ -68,8 +68,9 @@ class PointControleInline(admin.TabularInline):
 
 @admin.register(Ronde)
 class RondeAdmin(admin.ModelAdmin):
-    list_display = ("nom", "lot", "local", "frequence", "actif")
-    list_filter = ("lot", "frequence", "actif")
+    list_display = ("nom", "categorie", "equipement", "local", "horaire", "frequence", "actif")
+    list_filter = ("categorie", "lot", "frequence", "actif")
+    search_fields = ("nom", "equipement__nom", "local__nom")
     inlines = [PointControleInline]
 
 
