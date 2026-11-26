@@ -1,0 +1,89 @@
+{% extends "maintenance/base.html" %}
+{% block titre %}Rapport des interventions{% endblock %}
+
+{% block contenu %}
+  <h1>Rapport des interventions</h1>
+  <p>Période du <strong>{{ f.debut|date:"d/m/Y" }}</strong> au <strong>{{ f.fin|date:"d/m/Y" }}</strong>, selon la {{ f.base_libelle }}.</p>
+
+  <form method="get" class="filtres no-print">
+    <input type="date" name="du" value="{{ f.debut|date:'Y-m-d' }}">
+    <input type="date" name="au" value="{{ f.fin|date:'Y-m-d' }}">
+    <select name="base">
+      {% for code, libelle in bases %}
+        <option value="{{ code }}" {% if f.base == code %}selected{% endif %}>Selon la {{ libelle }}</option>
+      {% endfor %}
+    </select>
+    <select name="lot">
+      <option value="">Tous les lots</option>
+      {% for l in lots %}
+        <option value="{{ l.id }}" {% if f.lot_id == l.id|stringformat:"s" %}selected{% endif %}>{{ l.code }} - {{ l.nom }}</option>
+      {% endfor %}
+    </select>
+    <select name="type">
+      <option value="">Tous les types</option>
+      {% for valeur, libelle in type_choices %}
+        <option value="{{ valeur }}" {% if f.type == valeur %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+    <select name="statut">
+      <option value="">Tous les statuts</option>
+      {% for valeur, libelle in statut_choices %}
+        <option value="{{ valeur }}" {% if f.statut == valeur %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="q" placeholder="Titre ou équipement" value="{{ f.q }}">
+    <button type="submit" class="btn">Afficher</button>
+    <button type="submit" name="export" value="csv" class="btn">Exporter en CSV</button>
+    <button type="button" class="btn" onclick="window.print()">Imprimer</button>
+  </form>
+
+  <div class="cartes">
+    <div class="carte"><div class="nombre">{{ stats.total }}</div>Ordres</div>
+    <div class="carte"><div class="nombre">{{ stats.termines }}</div>Terminés</div>
+    <div class="carte"><div class="nombre">{{ stats.preventifs }}</div>Préventifs{% if stats.taux_preventif is not None %}<br><small>{{ stats.taux_preventif }} % réalisés</small>{% endif %}</div>
+    <div class="carte"><div class="nombre">{{ stats.correctifs }}</div>Correctifs</div>
+    <div class="carte retard"><div class="nombre">{{ stats.en_retard }}</div>Encore ouverts et en retard</div>
+    <div class="carte"><div class="nombre">{% if stats.ecart_moyen is not None %}{{ stats.ecart_moyen }}{% else %}-{% endif %}</div>Écart moyen clôture / prévue (jours)</div>
+  </div>
+
+  <h2>Par lot</h2>
+  {% if par_lot %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Lot</th><th>Ordres</th><th>Terminés</th><th>En retard</th></tr></thead>
+      <tbody>
+        {% for l in par_lot %}
+          <tr><td>{{ l.lot }}</td><td>{{ l.total }}</td><td>{{ l.termines }}</td><td>{{ l.en_retard }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% else %}
+    <p class="vide">Aucun ordre sur cette période.</p>
+  {% endif %}
+
+  <h2>Détail des ordres</h2>
+  {% if ordres %}
+    <div class="table-scroll"><table>
+      <thead>
+        <tr><th>N° OT</th><th>Date prévue</th><th>Clôturé le</th><th>Équipement</th><th>Lot</th><th>Type</th><th>Priorité</th><th>Statut</th><th>Technicien</th><th class="no-print"></th></tr>
+      </thead>
+      <tbody>
+        {% for o in ordres %}
+          <tr>
+            <td>OT-{{ o.id|stringformat:"05d" }}</td>
+            <td>{{ o.date_prevue|date:"d/m/Y"|default:"-" }}</td>
+            <td>{{ o.date_cloture|date:"d/m/Y"|default:"-" }}</td>
+            <td><a href="{% url 'fiche_equipement' o.equipement.id %}">{{ o.equipement }}</a></td>
+            <td>{{ o.equipement.lot.code|default:"-" }}</td>
+            <td>{{ o.get_type_ordre_display }}</td>
+            <td>{{ o.get_priorite_display }}</td>
+            <td>{{ o.get_statut_display }}</td>
+            <td>{{ o.technicien|default:"-" }}</td>
+            <td class="no-print"><a href="{% url 'rapport_intervention' o.id %}">Rapport</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% else %}
+    <p class="vide">Aucun ordre ne correspond à ces critères.</p>
+  {% endif %}
+{% endblock %}

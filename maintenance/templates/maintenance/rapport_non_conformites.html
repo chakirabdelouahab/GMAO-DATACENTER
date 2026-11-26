@@ -1,0 +1,104 @@
+{% extends "maintenance/base.html" %}
+{% block titre %}Rapport des non-conformités{% endblock %}
+
+{% block contenu %}
+  <h1>Rapport des non-conformités</h1>
+  <p>Non-conformités détectées du <strong>{{ f.debut|date:"d/m/Y" }}</strong> au <strong>{{ f.fin|date:"d/m/Y" }}</strong>.</p>
+
+  <form method="get" class="filtres no-print">
+    <input type="date" name="du" value="{{ f.debut|date:'Y-m-d' }}">
+    <input type="date" name="au" value="{{ f.fin|date:'Y-m-d' }}">
+    <select name="lot">
+      <option value="">Tous les lots</option>
+      {% for l in lots %}
+        <option value="{{ l.id }}" {% if f.lot_id == l.id|stringformat:"s" %}selected{% endif %}>{{ l.code }} - {{ l.nom }}</option>
+      {% endfor %}
+    </select>
+    <select name="gravite">
+      <option value="">Toutes les gravités</option>
+      {% for valeur, libelle in gravite_choices %}
+        <option value="{{ valeur }}" {% if f.gravite == valeur %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+    <select name="statut">
+      <option value="">Tous les statuts</option>
+      <option value="non_cloturees" {% if f.statut == "non_cloturees" %}selected{% endif %}>Non clôturées</option>
+      {% for valeur, libelle in statut_choices %}
+        <option value="{{ valeur }}" {% if f.statut == valeur %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="q" placeholder="Référence, titre ou équipement" value="{{ f.q }}">
+    <button type="submit" class="btn">Afficher</button>
+    <button type="submit" name="export" value="csv" class="btn">Exporter en CSV</button>
+    <button type="button" class="btn" onclick="window.print()">Imprimer</button>
+  </form>
+
+  <div class="cartes">
+    <div class="carte"><div class="nombre">{{ stats.total }}</div>Non-conformités</div>
+    <div class="carte avenir"><div class="nombre">{{ stats.non_cloturees }}</div>Non clôturées</div>
+    <div class="carte"><div class="nombre">{{ stats.cloturees }}</div>Clôturées</div>
+    <div class="carte retard"><div class="nombre">{{ stats.critiques }}</div>Critiques non clôturées</div>
+    <div class="carte retard"><div class="nombre">{{ stats.depassees }}</div>Échéances dépassées</div>
+    <div class="carte"><div class="nombre">{% if stats.delai_moyen is not None %}{{ stats.delai_moyen }}{% else %}-{% endif %}</div>Délai moyen de clôture (jours)</div>
+  </div>
+
+  <h2>Par lot</h2>
+  {% if par_lot %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Lot</th><th>Total</th><th>Non clôturées</th></tr></thead>
+      <tbody>
+        {% for l in par_lot %}
+          <tr><td>{{ l.cle }}</td><td>{{ l.total }}</td><td>{{ l.non_cloturees }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% else %}
+    <p class="vide">Aucune non-conformité sur cette période.</p>
+  {% endif %}
+
+  <h2>Par gravité</h2>
+  {% if par_gravite %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Gravité</th><th>Total</th><th>Non clôturées</th></tr></thead>
+      <tbody>
+        {% for g in par_gravite %}
+          <tr><td>{{ g.cle }}</td><td>{{ g.total }}</td><td>{{ g.non_cloturees }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% else %}
+    <p class="vide">-</p>
+  {% endif %}
+
+  <h2>Détail</h2>
+  {% if non_conformites %}
+    <div class="table-scroll"><table>
+      <thead>
+        <tr><th>Réf.</th><th>Détectée le</th><th>Titre</th><th>Lot</th><th>Équipement</th><th>Gravité</th><th>Statut</th><th>Échéance</th><th>Clôturée le</th><th>Durée (jours)</th></tr>
+      </thead>
+      <tbody>
+        {% for n in non_conformites %}
+          <tr>
+            <td>{{ n.reference }}</td>
+            <td>{{ n.date_detection|date:"d/m/Y" }}</td>
+            <td><a href="{% url 'fiche_non_conformite' n.id %}">{{ n.titre }}</a></td>
+            <td>{{ n.lot.code|default:"-" }}</td>
+            <td>{% if n.equipement %}<a href="{% url 'fiche_equipement' n.equipement.id %}">{{ n.equipement }}</a>{% else %}-{% endif %}</td>
+            <td {% if n.gravite == "critique" %}class="crit-critique"{% endif %}>{{ n.get_gravite_display }}</td>
+            <td>{{ n.get_statut_display }}</td>
+            <td>
+              {% if n.date_echeance and n.statut != "cloturee" and n.date_echeance < aujourdhui %}
+                <strong class="crit-critique">{{ n.date_echeance|date:"d/m/Y" }} (dépassée)</strong>
+              {% else %}{{ n.date_echeance|date:"d/m/Y"|default:"-" }}{% endif %}
+            </td>
+            <td>{{ n.date_cloture|date:"d/m/Y"|default:"-" }}</td>
+            <td>{{ n.duree }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    <p class="vide">Durée : jours entre la détection et la clôture, ou jusqu'à aujourd'hui si la non-conformité n'est pas clôturée.</p>
+  {% else %}
+    <p class="vide">Aucune non-conformité ne correspond à ces critères.</p>
+  {% endif %}
+{% endblock %}

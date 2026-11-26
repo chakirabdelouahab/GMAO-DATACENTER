@@ -148,7 +148,19 @@
         <a href="{% url 'admin:maintenance_ronde_changelist' %}">Modèles de rondes</a>
       </div>
     </details>
-
+    <details {% if nom == 'rapport_interventions' or nom == 'rapport_intervention' or nom == 'rapport_non_conformites' or nom == 'fiche_non_conformite' or nom == 'historique_mesures' %}open{% endif %}>
+      <summary>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Rapports
+      </summary>
+      <div class="sous">
+        <a class="{% if nom == 'rapport_interventions' or nom == 'rapport_intervention' %}actif{% endif %}" href="{% url 'rapport_interventions' %}">Rapport des interventions</a>
+        <a class="{% if nom == 'rapport_non_conformites' or nom == 'fiche_non_conformite' %}actif{% endif %}" href="{% url 'rapport_non_conformites' %}">Rapport des non-conformités</a>
+        <a class="{% if nom == 'historique_mesures' %}actif{% endif %}" href="{% url 'historique_mesures' %}">Historique des mesures</a>
+        <a href="{% url 'rondes_du_jour' %}">État journalier des rondes</a>
+      </div>
+    </details>
+    
     {% if user.is_staff %}
     <details>
       <summary>

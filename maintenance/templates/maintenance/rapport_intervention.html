@@ -1,0 +1,60 @@
+{% extends "maintenance/base.html" %}
+{% block titre %}Rapport d'intervention OT-{{ ordre.id|stringformat:"05d" }}{% endblock %}
+
+{% block contenu %}
+  <p class="no-print">
+    <a href="{% url 'rapport_interventions' %}">&larr; Rapport des interventions</a> |
+    <a href="{% url 'admin:maintenance_ordretravail_change' ordre.id %}">Modifier dans l'administration</a> |
+    <a href="#" onclick="window.print(); return false;">Imprimer</a>
+  </p>
+
+  <h1>Rapport d'intervention N° OT-{{ ordre.id|stringformat:"05d" }}</h1>
+  <p>{{ ordre.titre }}</p>
+
+  <dl>
+    <dt>Équipement</dt><dd><a href="{% url 'fiche_equipement' ordre.equipement.id %}">{{ ordre.equipement }}</a></dd>
+    <dt>Lot</dt><dd>{{ ordre.equipement.lot|default:"-" }}</dd>
+    <dt>Local</dt><dd>{{ ordre.equipement.local|default:"-" }}</dd>
+    <dt>Type</dt><dd>{{ ordre.get_type_ordre_display }}</dd>
+    <dt>Priorité</dt><dd>{{ ordre.get_priorite_display }}</dd>
+    <dt>Statut</dt><dd>{{ ordre.get_statut_display }}</dd>
+    <dt>Tâche du plan</dt><dd>{{ ordre.plan.tache|default:"-" }}</dd>
+    <dt>Technicien</dt><dd>{{ ordre.technicien|default:"-" }}</dd>
+    <dt>Créé le</dt><dd>{{ ordre.date_creation|date:"d/m/Y H:i" }}</dd>
+    <dt>Date prévue</dt><dd>{{ ordre.date_prevue|date:"d/m/Y"|default:"-" }}</dd>
+    <dt>Clôturé le</dt><dd>{{ ordre.date_cloture|date:"d/m/Y"|default:"-" }}{% if ecart is not None %} ({{ ecart }} jour(s) d'écart avec la date prévue){% endif %}</dd>
+  </dl>
+
+  <h2>Description</h2>
+  <p>{{ ordre.description|default:"-"|linebreaksbr }}</p>
+
+  <h2>Compte rendu d'intervention</h2>
+  <p>{{ ordre.compte_rendu|default:"Aucun compte rendu saisi."|linebreaksbr }}</p>
+
+  <h2>Non-conformités liées</h2>
+  {% if non_conformites %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Réf.</th><th>Titre</th><th>Gravité</th><th>Statut</th></tr></thead>
+      <tbody>
+        {% for n in non_conformites %}
+          <tr>
+            <td>{{ n.reference }}</td>
+            <td><a href="{% url 'fiche_non_conformite' n.id %}">{{ n.titre }}</a></td>
+            <td>{{ n.get_gravite_display }}</td>
+            <td>{{ n.get_statut_display }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% else %}
+    <p class="vide">Aucune non-conformité liée à cet ordre.</p>
+  {% endif %}
+
+  <h2>Validation</h2>
+  <table>
+    <tr>
+      <td style="height:90px; width:50%;"><strong>Technicien</strong> (nom, date et signature)</td>
+      <td style="height:90px; width:50%;"><strong>Responsable</strong> (visa)</td>
+    </tr>
+  </table>
+{% endblock %}

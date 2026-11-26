@@ -1,0 +1,44 @@
+{% extends "maintenance/base.html" %}
+{% block titre %}{{ nc.reference }}{% endblock %}
+
+{% block contenu %}
+  <p class="no-print">
+    <a href="{% url 'rapport_non_conformites' %}">&larr; Rapport des non-conformités</a> |
+    <a href="{% url 'admin:maintenance_nonconformite_change' nc.id %}">Modifier dans l'administration</a> |
+    <a href="#" onclick="window.print(); return false;">Imprimer</a>
+  </p>
+
+  <h1>Fiche de non-conformité {{ nc.reference }}</h1>
+  <p>{{ nc.titre }}</p>
+
+  <dl>
+    <dt>Statut</dt><dd>{{ nc.get_statut_display }}</dd>
+    <dt>Gravité</dt><dd {% if nc.gravite == "critique" %}class="crit-critique"{% endif %}>{{ nc.get_gravite_display }}</dd>
+    <dt>Origine</dt><dd>{{ nc.get_origine_display }}</dd>
+    <dt>Lot</dt><dd>{{ nc.lot|default:"-" }}</dd>
+    <dt>Équipement</dt>
+    <dd>{% if nc.equipement %}<a href="{% url 'fiche_equipement' nc.equipement.id %}">{{ nc.equipement }}</a>{% else %}-{% endif %}</dd>
+    <dt>Local</dt><dd>{{ nc.local|default:"-" }}</dd>
+    <dt>Détectée le</dt><dd>{{ nc.date_detection|date:"d/m/Y" }}</dd>
+    <dt>Détectée par</dt><dd>{{ nc.detecte_par|default:"-" }}</dd>
+    <dt>Responsable de l'action</dt><dd>{{ nc.responsable_action|default:"-" }}</dd>
+    <dt>Échéance de correction</dt><dd>{{ nc.date_echeance|date:"d/m/Y"|default:"-" }}</dd>
+    <dt>Clôturée le</dt><dd>{{ nc.date_cloture|date:"d/m/Y"|default:"-" }}</dd>
+    <dt>Ordre de travail associé</dt>
+    <dd>{% if nc.ordre_travail %}<a href="{% url 'rapport_intervention' nc.ordre_travail.id %}">OT-{{ nc.ordre_travail.id|stringformat:"05d" }} - {{ nc.ordre_travail.titre }}</a>{% else %}-{% endif %}</dd>
+  </dl>
+
+  <h2>Description</h2>
+  <p>{{ nc.description|default:"-"|linebreaksbr }}</p>
+
+  <h2>Action corrective</h2>
+  <p>{{ nc.action_corrective|default:"Aucune action corrective saisie."|linebreaksbr }}</p>
+
+  <h2>Validation</h2>
+  <table>
+    <tr>
+      <td style="height:90px; width:50%;"><strong>Responsable de l'action</strong> (nom, date et signature)</td>
+      <td style="height:90px; width:50%;"><strong>Responsable</strong> (visa de clôture)</td>
+    </tr>
+  </table>
+{% endblock %}
