@@ -57,7 +57,8 @@ def _detecter_colonnes(feuille):
 def lire_planning(chemin, lundi_force=None):
     """Retourne (familles, avertissements).
 
-    familles : liste de dicts {lot, famille, quantite, plans:[{freq, tache, jours, dates}]}
+    familles : liste de dicts {lot, famille, quantite, plans:[{freq, tache, jours, dates, echeances}]}
+    echeances : liste de (lundi, numero) - le numéro est celui écrit dans le planning (T1, T2...).
     """
     feuille = load_workbook(chemin, data_only=True).active
     lundi0 = _lundi_initial(feuille, lundi_force)
@@ -86,17 +87,24 @@ def lire_planning(chemin, lundi_force=None):
                 avertissements.append(f"Ligne {num} ({famille}) : code « {marque} » ignoré")
                 continue
             lundi = lundi0 + timedelta(days=7 * (col - col_semaine))
-            par_lettre.setdefault(lettre, []).append(lundi)
+            chiffres = re.search(r"\d+", marque)
+            rang = int(chiffres.group()) if chiffres else len(par_lettre.get(lettre, [])) + 1
+            par_lettre.setdefault(lettre, []).append((lundi, rang))
 
-        for lettre, dates in par_lettre.items():
+        for lettre, echeances in par_lettre.items():
             libelle, jours = FREQUENCES[lettre]
             tache = f"Maintenance préventive {libelle}"
             deja = sum(1 for p in fiche["plans"] if p["freq"] == lettre)
             if deja:
                 tache += f" ({deja + 1})"
-            fiche["plans"].append(
-                {"freq": lettre, "tache": tache, "jours": jours, "dates": sorted(dates)}
-            )
+            echeances = sorted(echeances)
+            fiche["plans"].append({
+                "freq": lettre,
+                "tache": tache,
+                "jours": jours,
+                "dates": [d for d, _ in echeances],
+                "echeances": echeances,
+            })
 
     return list(familles.values()), avertissements
 

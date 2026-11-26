@@ -18,4 +18,5 @@ urlpatterns = [
     path("rapports/non-conformites/", views.rapport_non_conformites, name="rapport_non_conformites"),
     path("rapports/non-conformites/<int:pk>/", views.fiche_non_conformite, name="fiche_non_conformite"),
     path("rapports/mesures/", views.historique_mesures, name="historique_mesures"),
+    path("planning/", views.planning_maintenance, name="planning_maintenance"),
 ]

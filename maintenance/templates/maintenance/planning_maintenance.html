@@ -1,0 +1,112 @@
+{% extends "maintenance/base.html" %}
+{% block titre %}Planning de maintenance{% endblock %}
+
+{% block contenu %}
+  <style>
+    .planning-scroll { overflow: auto; max-height: 72vh; border: 1px solid #ddd; }
+    table.planning { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; margin: 0; }
+    table.planning th, table.planning td { border: 0; border-right: 1px solid #e6e6e6; border-bottom: 1px solid #e6e6e6; padding: 0; text-align: center; font-size: 12px; background: #fff; color: #222; }
+    table.planning thead th { position: sticky; background: #e8eef3; color: #333; z-index: 3; padding: 4px 2px; }
+    table.planning tr.r1 th { top: 0; height: 28px; }
+    table.planning tr.r2 th { top: 28px; font-weight: normal; }
+    table.planning .lab { position: sticky; z-index: 2; text-align: left; padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
+    table.planning thead th.lab { z-index: 4; font-weight: bold; }
+    table.planning .sem { min-width: 46px; width: 46px; }
+    table.planning .courante { box-shadow: inset 2px 0 0 #1d8fe1; }
+    table.planning tr.sep > td { border-top: 2px solid #8a8a8a; }
+    table.planning .mois { background: #d9e4ec; font-weight: bold; }
+    .cel { display: block; margin: 2px; padding: 5px 0; border-radius: 3px; color: #fff; font-weight: bold; text-decoration: none; font-size: 12px; }
+    a.cel:hover { opacity: .8; }
+    .cel.prevue { background: #a9cbe8; color: #1b3f5c; }
+    .cel.planifiee { background: #2f7fc1; }
+    .cel.en_cours { background: #f0a020; }
+    .cel.realisee { background: #1e9e3a; }
+    .cel.en_retard { background: #d63031; }
+    .cel.annulee { background: #999; text-decoration: line-through; }
+    .cel.passee { background: #e4e4e4; color: #777; }
+    .legende { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px 0; }
+    .legende .cel { display: inline-block; padding: 4px 10px; margin: 0; }
+    .colonnes { flex-basis: 100%; font-size: 14px; }
+    .colonnes label { margin-right: 14px; white-space: nowrap; }
+    @media print {
+      @page { size: A3 landscape; margin: 8mm; }
+      .planning-scroll { max-height: none; overflow: visible; border: 0; }
+      table.planning th, table.planning td { font-size: 9px; }
+      .cel { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+
+  <h1>Planning de maintenance préventive</h1>
+  <p>Du <strong>{{ debut|date:"d/m/Y" }}</strong> au <strong>{{ fin|date:"d/m/Y" }}</strong> (semaines complètes). Clique sur une case pour ouvrir le rapport de l'ordre de travail.</p>
+
+  <form method="get" class="filtres no-print">
+    <input type="hidden" name="envoi" value="1">
+    <input type="date" name="du" value="{{ debut|date:'Y-m-d' }}" title="Première semaine affichée">
+    <input type="date" name="au" value="{{ fin|date:'Y-m-d' }}" title="Dernière semaine affichée">
+    <select name="lot">
+      <option value="">Tous les lots</option>
+      {% for l in lots %}
+        <option value="{{ l.id }}" {% if lot_id == l.id|stringformat:"s" %}selected{% endif %}>{{ l.code }} - {{ l.nom }}</option>
+      {% endfor %}
+    </select>
+    <select name="periodicite">
+      <option value="">Toutes les périodicités</option>
+      {% for valeur, libelle in periodicite_choices %}
+        <option value="{{ valeur }}" {% if periodicite == valeur|stringformat:"s" %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="q" placeholder="Famille, lot ou tâche" value="{{ recherche }}">
+    <button type="submit" class="btn">Actualiser</button>
+    <a href="{% url 'planning_maintenance' %}" style="align-self:center;">Semaine en cours</a>
+    <button type="button" class="btn" onclick="window.print()">Imprimer</button>
+    <div class="colonnes">
+      Colonnes :
+      {% for cle, titre, coche in choix_colonnes %}
+        <label><input type="checkbox" name="cols" value="{{ cle }}" {% if coche %}checked{% endif %}> {{ titre }}</label>
+      {% endfor %}
+      <label><input type="checkbox" name="vides" value="1" {% if masquer_vides %}checked{% endif %}> Masquer les lignes sans échéance</label>
+    </div>
+  </form>
+
+  <div class="legende">
+    {% for etat, libelle, nombre in compteurs %}
+      <span class="cel {{ etat }}">{{ libelle }} : {{ nombre }}</span>
+    {% endfor %}
+  </div>
+
+  <div class="planning-scroll">
+    <table class="planning">
+      <thead>
+        <tr class="r1">
+          {% for c in colonnes %}<th rowspan="2" class="lab" style="{{ c.style }}">{{ c.titre }}</th>{% endfor %}
+          {% for m in mois %}<th colspan="{{ m.n }}" class="mois">{{ m.libelle }}</th>{% endfor %}
+        </tr>
+        <tr class="r2">
+          {% for s in semaines %}
+            <th class="sem {% if s.courante %}courante{% endif %}">S{{ s.num }}<br><small>L.{{ s.jour }}</small></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in lignes %}
+          <tr class="{% if l.nouveau_lot %}sep{% endif %}">
+            {% for v in l.labels %}<td class="lab" style="{{ v.style }}" title="{{ l.tache }}">{{ v.texte }}</td>{% endfor %}
+            {% for c in l.cellules %}
+              <td class="sem {% if forloop.counter0 == semaine_courante %}courante{% endif %}">
+                {% if c %}
+                  {% if c.ordre_id %}
+                    <a class="cel {{ c.etat }}" href="{% url 'rapport_intervention' c.ordre_id %}" title="{{ c.titre }}">{{ c.code }}</a>
+                  {% else %}
+                    <span class="cel {{ c.etat }}" title="{{ c.titre }}">{{ c.code }}</span>
+                  {% endif %}
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% empty %}
+          <tr><td class="vide" colspan="{{ nb_colonnes_total }}">Aucun plan de maintenance ne correspond à ces critères.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

@@ -344,3 +344,20 @@ class Releve(models.Model):
 
     def __str__(self):
         return f"{self.point.libelle} : {self.valeur if self.valeur is not None else self.etat_ok}"
+
+
+class EcheancePlanning(models.Model):
+    plan = models.ForeignKey(PlanMaintenance, on_delete=models.CASCADE, related_name="echeances")
+    semaine = models.DateField("semaine (lundi)")
+    numero = models.PositiveSmallIntegerField("numéro", default=1, help_text="Rang dans la série : T1, T2...")
+
+    class Meta:
+        verbose_name = "échéance du planning"
+        verbose_name_plural = "échéances du planning"
+        ordering = ["plan", "semaine"]
+        constraints = [
+            models.UniqueConstraint(fields=["plan", "semaine"], name="une_echeance_par_semaine_et_plan"),
+        ]
+
+    def __str__(self):
+        return f"{self.plan} - semaine du {self.semaine:%d/%m/%Y}"

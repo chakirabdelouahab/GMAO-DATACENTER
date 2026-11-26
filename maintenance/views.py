@@ -1,4 +1,5 @@
 import csv
+from collections import Counter
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -6,14 +7,14 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import Http404, HttpResponse
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .models import (
-    Equipement, Local, Lot, NonConformite, OrdreTravail, PointControle, Releve, Ronde,
-    RondeRealisee,
+    EcheancePlanning, Equipement, Local, Lot, NonConformite, OrdreTravail, PlanMaintenance,
+    PointControle, Releve, Ronde, RondeRealisee,
 )
 from .notifications import notifier_hors_seuil, rondes_non_realisees
 
@@ -947,3 +948,315 @@ def historique_mesures(request):
         "courbe": courbe,
     }
     return render(request, "maintenance/historique_mesures.html", contexte)
+
+
+# ----------------------------------------------------------------------------
+# Planning de maintenance préventive (grille par semaine)
+# ----------------------------------------------------------------------------
+
+LETTRES_PERIODICITE = {7: "H", 30: "M", 90: "T", 180: "S", 365: "A"}
+
+
+@login_required
+def planning_preventif(request):
+    aujourdhui = date.today()
+
+    def lire(nom, defaut):
+        try:
+            return date.fromisoformat(request.GET[nom]) if request.GET.get(nom) else defaut
+        except ValueError:
+            return defaut
+
+    debut = lire("du", date(aujourdhui.year, 1, 1))
+    fin = lire("au", date(aujourdhui.year, 12, 31))
+    if debut > fin:
+        debut, fin = fin, debut
+    debut -= timedelta(days=debut.weekday())              # la grille commence un lundi
+    lundi_courant = aujourdhui - timedelta(days=aujourdhui.weekday())
+
+    # Colonnes : une par semaine
+    semaines, lundi = [], debut
+    while lundi <= fin:
+        semaines.append({
+            "lundi": lundi,
+            "num": lundi.isocalendar()[1],
+            "courante": lundi == lundi_courant,
+        })
+        lundi += timedelta(weeks=1)
+
+    # Bandeau des mois : on regroupe les semaines par mois du lundi
+    mois = []
+    for s in semaines:
+        cle = (s["lundi"].year, s["lundi"].month)
+        if mois and mois[-1]["cle"] == cle:
+            mois[-1]["n"] += 1
+        else:
+            mois.append({"cle": cle, "lundi": s["lundi"], "n": 1})
+
+    ordres = (
+        OrdreTravail.objects
+        .filter(type_ordre="preventif", date_prevue__range=(debut, fin))
+        .exclude(statut="annule")
+        .select_related("equipement__lot", "plan")
+        .order_by("date_prevue", "id")
+    )
+    lot_id = request.GET.get("lot", "")
+    if lot_id:
+        ordres = ordres.filter(equipement__lot_id=lot_id)
+
+    lignes, rangs = {}, {}
+    for ot in ordres:
+        eq = ot.equipement
+        lot_nom = eq.lot.nom if eq.lot else "Sans lot"
+        famille = eq.type_equipement or "Non classé"
+        cle = (lot_nom, famille)
+        ligne = lignes.setdefault(cle, {"lot": lot_nom, "famille": famille, "cases": {}})
+
+        lettre = LETTRES_PERIODICITE.get(ot.plan.periodicite_jours if ot.plan else None, "?")
+        lundi_ot = ot.date_prevue - timedelta(days=ot.date_prevue.weekday())
+
+        # Numéro d'occurrence : T1, T2... (une valeur par semaine distincte de la ligne)
+        vues = rangs.setdefault((cle, lettre), [])
+        if lundi_ot not in vues:
+            vues.append(lundi_ot)
+        numero = vues.index(lundi_ot) + 1
+
+        if ot.statut == "termine":
+            css = "termine"
+        elif ot.date_prevue < aujourdhui:
+            css = "retard"
+        else:
+            css = "planifie"
+
+        pastille = ligne["cases"].setdefault(lundi_ot, {}).setdefault(lettre, {
+            "label": f"{lettre}{numero}", "css": css, "ot": ot.pk, "n": 0, "titre": ot.titre,
+        })
+        pastille["n"] += 1
+        if css == "retard":                    # un seul ordre en retard colore toute la case
+            pastille["css"] = "retard"
+
+    for ligne in lignes.values():
+        ligne["cellules"] = [
+            {"courante": s["courante"], "pastilles": list(ligne["cases"].get(s["lundi"], {}).values())}
+            for s in semaines
+        ]
+
+    contexte = {
+        "semaines": semaines,
+        "mois": mois,
+        "lignes": sorted(lignes.values(), key=lambda l: (l["lot"], l["famille"])),
+        "debut": debut,
+        "fin": fin,
+        "lots": Lot.objects.order_by("code"),
+        "lot_id": lot_id,
+    }
+    return render(request, "maintenance/planning.html", contexte)
+
+
+# ----------------------------------------------------------------------------
+# Planning de maintenance (vue par semaines)
+# ----------------------------------------------------------------------------
+
+MOIS_COURTS = ["janv.", "févr.", "mars", "avr.", "mai", "juin",
+               "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+LETTRES_PERIODICITE = {7: "H", 30: "M", 90: "T", 180: "S", 365: "A"}
+COLONNES_PLANNING = [
+    ("lot", "Lot technique", 170),
+    ("famille", "Famille d'équipement", 230),
+    ("periodicite", "Périodicité", 115),
+    ("quantite", "Nombre", 75),
+    ("criticite", "Criticité", 95),
+]
+ETATS_PLANNING = [
+    ("prevue", "Prévue au planning"),
+    ("planifiee", "Ordre généré"),
+    ("en_cours", "En cours"),
+    ("realisee", "Réalisée"),
+    ("en_retard", "En retard"),
+    ("annulee", "Annulée"),
+    ("passee", "Passée, sans ordre"),
+]
+
+
+def _lundi(jour):
+    return jour - timedelta(days=jour.weekday())
+
+
+def _en_tetes(semaines, lundi_courant):
+    """En-têtes du planning : mois (selon le lundi, comme dans l'Excel) et numéros de semaine."""
+    mois = []
+    for lundi in semaines:
+        cle = (lundi.year, lundi.month)
+        if not mois or mois[-1]["cle"] != cle:
+            mois.append({"cle": cle, "libelle": f"{MOIS_COURTS[lundi.month - 1]} {lundi.year}", "n": 0})
+        mois[-1]["n"] += 1
+    entetes = [
+        {"num": lundi.isocalendar()[1], "jour": f"{lundi:%d}", "courante": lundi == lundi_courant}
+        for lundi in semaines
+    ]
+    return mois, entetes
+
+
+def _etat_cellule(ordre, lundi, aujourdhui):
+    """Couleur d'une case : l'ordre de travail prime, sinon la semaine prévue au planning."""
+    fin_semaine = lundi + timedelta(days=6)
+    if ordre:
+        if ordre["statut"] == "termine":
+            return "realisee"
+        if ordre["statut"] == "annule":
+            return "annulee"
+        if ordre["statut"] == "en_cours":
+            return "en_cours"
+        return "en_retard" if fin_semaine < aujourdhui else "planifiee"
+    return "passee" if fin_semaine < aujourdhui else "prevue"
+
+
+def _colonnes_choisies(choisies):
+    """Colonnes d'étiquettes affichées, avec le décalage nécessaire pour les figer à gauche."""
+    colonnes, gauche = [], 0
+    for cle, titre, largeur in COLONNES_PLANNING:
+        if cle in choisies:
+            colonnes.append({
+                "cle": cle, "titre": titre,
+                "style": f"left:{gauche}px;min-width:{largeur}px;max-width:{largeur}px;",
+            })
+            gauche += largeur
+    return colonnes
+
+
+def _valeur_colonne(cle, plan):
+    equipement = plan.equipement
+    if cle == "lot":
+        return equipement.type_equipement or (equipement.lot.nom if equipement.lot else "-")
+    if cle == "famille":
+        return equipement.nom
+    if cle == "periodicite":
+        return plan.get_periodicite_jours_display()
+    if cle == "quantite":
+        return str(equipement.quantite)
+    return equipement.get_criticite_display()
+
+
+@login_required
+def planning_maintenance(request):
+    aujourdhui = date.today()
+    lundi_courant = _lundi(aujourdhui)
+
+    def lire_date(nom, defaut):
+        try:
+            return date.fromisoformat(request.GET[nom]) if request.GET.get(nom) else defaut
+        except ValueError:
+            return defaut
+
+    debut = _lundi(lire_date("du", lundi_courant - timedelta(weeks=4)))
+    fin = _lundi(lire_date("au", lundi_courant + timedelta(weeks=26)))
+    if fin < debut:
+        debut, fin = fin, debut
+    if (fin - debut).days // 7 + 1 > 104:  # au plus deux ans affichés
+        fin = debut + timedelta(weeks=103)
+    nb_semaines = (fin - debut).days // 7 + 1
+    semaines = [debut + timedelta(weeks=i) for i in range(nb_semaines)]
+    mois, entetes = _en_tetes(semaines, lundi_courant)
+    semaine_courante = (lundi_courant - debut).days // 7
+    if not 0 <= semaine_courante < nb_semaines:
+        semaine_courante = None
+
+    cles_valides = [cle for cle, _, _ in COLONNES_PLANNING]
+    if "envoi" in request.GET:
+        choisies = [c for c in request.GET.getlist("cols") if c in cles_valides] or ["famille"]
+    else:
+        choisies = ["lot", "famille"]
+    colonnes = _colonnes_choisies(choisies)
+
+    lot_id = request.GET.get("lot", "")
+    periodicite = request.GET.get("periodicite", "")
+    recherche = request.GET.get("q", "").strip()
+    masquer_vides = request.GET.get("vides") == "1"
+
+    plans = (
+        PlanMaintenance.objects.filter(actif=True)
+        .select_related("equipement", "equipement__lot")
+        .order_by("equipement__lot__code", "equipement__type_equipement",
+                  "equipement__nom", "periodicite_jours", "tache")
+    )
+    if lot_id.isdigit():
+        plans = plans.filter(equipement__lot_id=int(lot_id))
+    if periodicite.isdigit():
+        plans = plans.filter(periodicite_jours=int(periodicite))
+    if recherche:
+        plans = plans.filter(
+            Q(equipement__nom__icontains=recherche)
+            | Q(equipement__type_equipement__icontains=recherche)
+            | Q(tache__icontains=recherche)
+        )
+
+    echeances = {
+        (plan_id, (semaine - debut).days // 7): rang
+        for plan_id, semaine, rang in EcheancePlanning.objects.filter(
+            plan__in=plans, semaine__gte=debut, semaine__lte=fin
+        ).values_list("plan_id", "semaine", "numero")
+    }
+    ordres = {}
+    for ordre in (
+        OrdreTravail.objects.filter(
+            plan__in=plans, date_prevue__gte=debut, date_prevue__lte=fin + timedelta(days=6)
+        )
+        .order_by("id")
+        .values("id", "plan_id", "date_prevue", "statut")
+    ):
+        ordres[(ordre["plan_id"], (ordre["date_prevue"] - debut).days // 7)] = ordre
+
+    libelles = dict(ETATS_PLANNING)
+    compteurs = Counter()
+    lignes, precedent = [], None
+    for plan in plans:
+        lettre = LETTRES_PERIODICITE.get(plan.periodicite_jours, "?")
+        cellules = []
+        for i, lundi in enumerate(semaines):
+            rang = echeances.get((plan.id, i))
+            ordre = ordres.get((plan.id, i))
+            if rang is None and ordre is None:
+                cellules.append(None)
+                continue
+            etat = _etat_cellule(ordre, lundi, aujourdhui)
+            compteurs[etat] += 1
+            cellules.append({
+                "code": f"{lettre}{rang}" if rang is not None else lettre,
+                "etat": etat,
+                "ordre_id": ordre["id"] if ordre else None,
+                "titre": f"{plan.tache} - semaine du {lundi:%d/%m/%Y} - {libelles[etat]}",
+            })
+        if masquer_vides and not any(cellules):
+            continue
+        labels = [
+            {"texte": _valeur_colonne(c["cle"], plan), "style": c["style"]} for c in colonnes
+        ]
+        groupe = _valeur_colonne("lot", plan)
+        lignes.append({
+            "labels": labels,
+            "cellules": cellules,
+            "nouveau_lot": precedent is not None and groupe != precedent,
+            "tache": plan.tache,
+        })
+        precedent = groupe
+
+    contexte = {
+        "debut": debut,
+        "fin": fin,
+        "mois": mois,
+        "semaines": entetes,
+        "semaine_courante": semaine_courante,
+        "nb_colonnes_total": len(colonnes) + nb_semaines,
+        "colonnes": colonnes,
+        "choix_colonnes": [(cle, titre, cle in choisies) for cle, titre, _ in COLONNES_PLANNING],
+        "lignes": lignes,
+        "legende": ETATS_PLANNING,
+        "compteurs": [(etat, libelle, compteurs[etat]) for etat, libelle in ETATS_PLANNING],
+        "lots": Lot.objects.order_by("code"),
+        "periodicite_choices": PlanMaintenance.PERIODICITE_CHOICES,
+        "lot_id": lot_id,
+        "periodicite": periodicite,
+        "recherche": recherche,
+        "masquer_vides": masquer_vides,
+    }
+    return render(request, "maintenance/planning_maintenance.html", contexte)

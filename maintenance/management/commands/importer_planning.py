@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from maintenance.import_planning import lire_planning, premiere_echeance
-from maintenance.models import Equipement, Lot, PlanMaintenance
+from maintenance.models import EcheancePlanning, Equipement, Lot, PlanMaintenance
 
 # Lot du planning Excel -> (code, nom du lot dans la GMAO).
 # Proposition de regroupement : modifie-la librement avant de lancer l'import.
@@ -41,7 +41,7 @@ LOT_PAR_DEFAUT = ("AUTRE", "Autres lots")
 
 
 class Command(BaseCommand):
-    help = "Importe les équipements (familles) et les plans de maintenance depuis le planning Excel."
+    help = "Importe les équipements (familles), les plans de maintenance et le planning des semaines depuis l'Excel."
 
     def add_arguments(self, parser):
         parser.add_argument("fichier", help="Chemin du fichier Excel (.xlsx)")
@@ -67,7 +67,10 @@ class Command(BaseCommand):
         for message in avertissements:
             self.stdout.write(self.style.WARNING(message))
 
-        compte = {"lots": 0, "equipements": 0, "equipements_maj": 0, "plans": 0, "plans_maj": 0}
+        compte = {
+            "lots": 0, "equipements": 0, "equipements_maj": 0,
+            "plans": 0, "plans_maj": 0, "echeances": 0, "echeances_maj": 0,
+        }
         inconnus = set()
 
         with transaction.atomic():
@@ -108,6 +111,13 @@ class Command(BaseCommand):
                         objet.save(update_fields=["periodicite_jours", "premiere_echeance"])
                         compte["plans_maj"] += 1
 
+                    # Semaines planifiées (affichées dans le planning de maintenance)
+                    for lundi, rang in plan["echeances"]:
+                        _, cree = EcheancePlanning.objects.update_or_create(
+                            plan=objet, semaine=lundi, defaults={"numero": rang},
+                        )
+                        compte["echeances" if cree else "echeances_maj"] += 1
+
             if options["simulation"]:
                 transaction.set_rollback(True)
 
@@ -119,5 +129,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"{titre} : {compte['lots']} lot(s) créé(s), "
             f"{compte['equipements']} équipement(s) créé(s), {compte['equipements_maj']} mis à jour, "
-            f"{compte['plans']} plan(s) créé(s), {compte['plans_maj']} mis à jour."
+            f"{compte['plans']} plan(s) créé(s), {compte['plans_maj']} mis à jour, "
+            f"{compte['echeances']} semaine(s) planifiée(s) créée(s), {compte['echeances_maj']} mise(s) à jour."
         ))

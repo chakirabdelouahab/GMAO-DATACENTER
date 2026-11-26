@@ -3,7 +3,7 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 
 from .models import (
-    Equipement, Local, Lot, NonConformite, OrdreTravail, PlanMaintenance,
+    EcheancePlanning, Equipement, Local, Lot, NonConformite, OrdreTravail, PlanMaintenance,
     PointControle, Releve, Ronde, RondeRealisee,
 )
 
@@ -22,6 +22,12 @@ class EquipementAdmin(admin.ModelAdmin):
     search_fields = ("nom", "numero_serie", "marque", "modele", "type_equipement")
 
 
+class EcheancePlanningInline(admin.TabularInline):
+    model = EcheancePlanning
+    extra = 0
+    fields = ("semaine", "numero")
+
+
 @admin.register(PlanMaintenance)
 class PlanMaintenanceAdmin(admin.ModelAdmin):
     list_display = (
@@ -29,6 +35,8 @@ class PlanMaintenanceAdmin(admin.ModelAdmin):
         "derniere_realisation", "prochaine_echeance", "actif",
     )
     list_filter = ("actif", "periodicite_jours")
+    search_fields = ("equipement__nom", "tache")
+    inlines = [EcheancePlanningInline]
 
 
 @admin.register(OrdreTravail)

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>Planning de maintenance préventive</title>
+<style>
+  body{font-family:Segoe UI,Arial,sans-serif;margin:20px;color:#333}
+  h2{color:#1a9bd7;font-weight:400}
+  form{margin-bottom:12px}
+  .conteneur{overflow:auto;border:1px solid #ddd;max-height:75vh}
+  table{border-collapse:collapse;font-size:13px}
+  th,td{border:1px solid #e3e3e3;padding:4px 6px;min-width:54px;text-align:center}
+  thead th{background:#e9eff5;position:sticky;top:0;z-index:2}
+  .fixe{text-align:left;min-width:170px;background:#fff;position:sticky;left:0;z-index:1}
+  .fixe2{left:170px}
+  thead .fixe{z-index:3;background:#e9eff5}
+  tbody tr:nth-child(even) .fixe{background:#f7f9fb}
+  .courante{border-left:2px solid #1a9bd7}
+  .pastille{display:block;font-weight:700;color:#fff;padding:3px 0;margin:1px 0;text-decoration:none}
+  .planifie{background:#2f9bd6}
+  .termine{background:#00b300}
+  .retard{background:#f5ee7a;color:#333}
+  .legende span{display:inline-block;padding:2px 10px;margin-right:8px;color:#fff;font-size:12px}
+</style></head><body>
+
+<h2>Planning maintenance préventive — du {{ debut|date:"d/m/Y" }} au {{ fin|date:"d/m/Y" }}</h2>
+
+<form method="get">
+  Du <input type="date" name="du" value="{{ debut|date:'Y-m-d' }}">
+  au <input type="date" name="au" value="{{ fin|date:'Y-m-d' }}">
+  Lot technique :
+  <select name="lot">
+    <option value="">Tous</option>
+    {% for l in lots %}
+      <option value="{{ l.pk }}" {% if l.pk|stringformat:"s" == lot_id %}selected{% endif %}>{{ l.nom }}</option>
+    {% endfor %}
+  </select>
+  <button>Actualiser</button>
+</form>
+
+<p class="legende">
+  <span class="planifie">Planifié</span>
+  <span class="termine">Terminé</span>
+  <span class="retard" style="color:#333">En retard</span>
+  H hebdo · M mensuel · T trimestriel · S semestriel · A annuel
+</p>
+
+<div class="conteneur"><table>
+  <thead>
+    <tr>
+      <th class="fixe" rowspan="2">Lot technique</th>
+      <th class="fixe fixe2" rowspan="2">Famille d'équipement</th>
+      {% for m in mois %}<th colspan="{{ m.n }}">{{ m.lundi|date:"F Y" }}</th>{% endfor %}
+    </tr>
+    <tr>
+      {% for s in semaines %}
+        <th class="{% if s.courante %}courante{% endif %}">S{{ s.num }}<br><small>L{{ s.lundi|date:"d" }}</small></th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+  {% for l in lignes %}
+    <tr>
+      <td class="fixe">{{ l.lot }}</td>
+      <td class="fixe fixe2">{{ l.famille }}</td>
+      {% for c in l.cellules %}
+        <td class="{% if c.courante %}courante{% endif %}">
+          {% for p in c.pastilles %}
+            <a class="pastille {{ p.css }}" title="{{ p.titre }}"
+               href="{% url 'rapport_intervention' p.ot %}">{{ p.label }}{% if p.n > 1 %} ×{{ p.n }}{% endif %}</a>
+          {% endfor %}
+        </td>
+      {% endfor %}
+    </tr>
+  {% empty %}
+    <tr><td colspan="99">Aucun ordre préventif sur cette période.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+</body></html>
