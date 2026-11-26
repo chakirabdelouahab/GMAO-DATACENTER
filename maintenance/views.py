@@ -15,6 +15,7 @@ from .models import (
     Equipement, Local, Lot, NonConformite, OrdreTravail, PointControle, Releve, Ronde,
     RondeRealisee,
 )
+from .notifications import notifier_hors_seuil
 
 
 @login_required
@@ -352,6 +353,8 @@ def saisir_ronde(request, pk):
                     nc, existante = _creer_nc_hors_seuil(ronde, realisation, hors, request.user)
 
             messages.success(request, f"Ronde enregistrée : {ronde.nom} ({len(saisies)} relevé(s)).")
+            if hors:
+                notifier_hors_seuil(ronde, realisation, hors, nc, existante)
             if hors:
                 messages.warning(request, f"{len(hors)} valeur(s) hors seuil sur cette ronde.")
             if nc:

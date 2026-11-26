@@ -121,9 +121,37 @@ STATIC_URL = 'static/'
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+import os
+
+# Envoi d'e-mails (Django 6.1 : réglage MAILERS).
+# Sans variable d'environnement, les messages s'affichent dans le terminal (mode test).
+if os.environ.get("EMAIL_HOST"):
+    _options_smtp = {
+        "host": os.environ["EMAIL_HOST"],
+        "username": os.environ.get("EMAIL_HOST_USER", ""),
+        "password": os.environ.get("EMAIL_HOST_PASSWORD", ""),
+    }
+    _securite = os.environ.get("EMAIL_SECURITE", "tls").lower()  # tls, ssl ou aucune
+    if _securite == "tls":
+        _options_smtp["use_tls"] = True
+    elif _securite == "ssl":
+        _options_smtp["use_ssl"] = True
+    if os.environ.get("EMAIL_PORT"):
+        _options_smtp["port"] = int(os.environ["EMAIL_PORT"])
+    MAILERS = {
+        "default": {
+            "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            "OPTIONS": _options_smtp,
+        },
+    }
+else:
+    MAILERS = {
+        "default": {"BACKEND": "django.core.mail.backends.console.EmailBackend"},
+    }
+
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "gmao@localhost")
+
+# Adresse du site, utilisée pour les liens placés dans les e-mails.
+SITE_URL = os.environ.get("SITE_URL", "http://127.0.0.1:8000")
+
 LOGIN_URL = "/admin/login/"
