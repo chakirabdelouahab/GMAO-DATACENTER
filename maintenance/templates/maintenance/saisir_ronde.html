@@ -1,0 +1,62 @@
+{% extends "maintenance/base.html" %}
+{% block titre %}Saisie - {{ ronde.nom }}{% endblock %}
+
+{% block contenu %}
+  <p><a href="{% url 'rondes_du_jour' %}">&larr; Retour aux rondes du jour</a></p>
+  <h1>{{ ronde.nom }}</h1>
+  <p>
+    {% if ronde.equipement %}Équipement : <strong>{{ ronde.equipement }}</strong> &nbsp;|&nbsp;{% endif %}
+    Local : <strong>{{ ronde.local|default:"-" }}</strong> &nbsp;|&nbsp;
+    Horaire prévu : <strong>{{ ronde.horaire|time:"H:i" }}</strong>
+  </p>
+  {% if ronde.consignes %}<p class="consigne">{{ ronde.consignes|linebreaksbr }}</p>{% endif %}
+
+  <form method="post" class="saisie">
+    {% csrf_token %}
+
+    {% for l in lignes %}
+      <div class="point">
+        <label for="valeur_{{ l.point.id }}">
+          {{ l.point.libelle }}{% if l.point.unite %} <span class="unite">({{ l.point.unite }})</span>{% endif %}
+        </label>
+
+        {% if l.point.type_releve == "mesure" %}
+          {% if l.point.seuil_min is not None or l.point.seuil_max is not None %}
+            <div class="seuils">Seuils :
+              {% if l.point.seuil_min is not None %}mini {{ l.point.seuil_min|floatformat:"-3" }}{% endif %}
+              {% if l.point.seuil_min is not None and l.point.seuil_max is not None %} / {% endif %}
+              {% if l.point.seuil_max is not None %}maxi {{ l.point.seuil_max|floatformat:"-3" }}{% endif %}
+            </div>
+          {% endif %}
+          <input id="valeur_{{ l.point.id }}" type="text" inputmode="decimal" autocomplete="off"
+                 name="valeur_{{ l.point.id }}" value="{{ l.valeur }}">
+        {% elif l.point.type_releve == "etat" %}
+          <select id="valeur_{{ l.point.id }}" name="valeur_{{ l.point.id }}">
+            <option value="">-- Non relevé --</option>
+            <option value="ok" {% if l.valeur == "ok" %}selected{% endif %}>OK</option>
+            <option value="nok" {% if l.valeur == "nok" %}selected{% endif %}>NOK</option>
+          </select>
+        {% else %}
+          <input id="valeur_{{ l.point.id }}" type="text" name="valeur_{{ l.point.id }}" value="{{ l.valeur }}" maxlength="300">
+        {% endif %}
+
+        {% if l.point.type_releve != "observation" %}
+          <input class="commentaire" type="text" name="commentaire_{{ l.point.id }}"
+                 placeholder="Commentaire (facultatif)" value="{{ l.commentaire }}" maxlength="300">
+        {% endif %}
+      </div>
+    {% empty %}
+      <p class="vide">Aucun point de contrôle n'est défini pour cette ronde (à ajouter dans l'administration).</p>
+    {% endfor %}
+
+    <h2>Observations générales</h2>
+    <textarea name="observations" placeholder="Observations sur la ronde (facultatif)">{{ observations }}</textarea>
+
+    <label class="case">
+      <input type="checkbox" name="creer_nc" value="1" checked>
+      Créer automatiquement une non-conformité si une valeur est hors seuil
+    </label>
+
+    <button type="submit" class="btn gros">Enregistrer la ronde</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "maintenance/base.html" %}
+{% block titre %}Rondes du jour{% endblock %}
+
+{% block contenu %}
+  <h1>Rondes du {{ jour|date:"d/m/Y" }}</h1>
+
+  <form method="get" class="filtres no-print">
+    <input type="date" name="date" value="{{ jour|date:'Y-m-d' }}">
+    <button type="submit" class="btn">Afficher</button>
+    <a href="{% url 'rondes_du_jour' %}" style="align-self:center;">Aujourd'hui</a>
+    <button type="button" class="btn" onclick="window.print()">Imprimer l'état journalier</button>
+  </form>
+
+  {% if not modifiable %}
+    <p class="vide no-print">Consultation d'un autre jour : la saisie n'est possible que pour aujourd'hui.</p>
+  {% endif %}
+
+  <div class="cartes">
+    <div class="carte"><div class="nombre">{{ total_planifiees }}</div>Rondes planifiées</div>
+    <div class="carte"><div class="nombre">{{ total_faites }}</div>Réalisées</div>
+    <div class="carte avenir"><div class="nombre">{{ total_non_realisees }}</div>Non réalisées</div>
+    <div class="carte retard"><div class="nombre">{{ total_hors_seuil }}</div>Avec valeur hors seuil</div>
+  </div>
+
+  {% for g in groupes %}
+    <h2>{{ g.titre }} — {{ g.faites }} / {{ g.planifiees }} réalisées{% if g.hors_seuil %}, {{ g.hors_seuil }} hors seuil{% endif %}</h2>
+    <div class="table-scroll"><table>
+      <thead>
+        <tr><th>Heure prévue</th><th>Ronde</th><th>Local</th><th>Statut</th><th>Réalisée</th><th class="no-print">Action</th></tr>
+      </thead>
+      <tbody>
+        {% for l in g.lignes %}
+          <tr>
+            <td>{{ l.ronde.horaire|time:"H:i" }}</td>
+            <td>{{ l.ronde.nom }}</td>
+            <td>{{ l.ronde.local|default:"-" }}</td>
+            <td>
+              <span class="badge {{ l.etat }}">
+                {% if l.etat == "a_faire" %}À faire{% elif l.etat == "en_cours" %}En cours{% elif l.etat == "hors_seuil" %}Hors seuil{% else %}Faite{% endif %}
+              </span>
+            </td>
+            <td>{% if l.realisation %}{{ l.heure|date:"d/m H:i" }} — {{ l.realisation.intervenant|default:"-" }}{% else %}-{% endif %}</td>
+            <td class="no-print">
+              {% if g.code == "technique" %}
+                {% if modifiable %}
+                  <a class="lien-bouton" href="{% url 'saisir_ronde' l.ronde.id %}">{% if l.realisation %}Refaire{% else %}Saisir{% endif %}</a>
+                {% endif %}
+                {% if l.realisation %}<a href="{% url 'detail_realisation' l.realisation.id %}">Voir</a>{% endif %}
+              {% else %}
+                {% if l.realisation %}
+                  <a href="{% url 'detail_realisation' l.realisation.id %}">Voir</a>
+                {% elif modifiable %}
+                  <form method="post" action="{% url 'valider_passage' l.ronde.id %}" class="inline-passage">
+                    {% csrf_token %}
+                    <input type="text" name="observations" placeholder="Commentaire (facultatif)" maxlength="500">
+                    <button type="submit" class="btn">Fait</button>
+                  </form>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% empty %}
+    <p class="vide">Aucune ronde active. Ajoute-en dans l'administration (Modèles de rondes).</p>
+  {% endfor %}
+{% endblock %}

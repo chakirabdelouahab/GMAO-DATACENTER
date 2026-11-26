@@ -1,0 +1,49 @@
+{% extends "maintenance/base.html" %}
+{% block titre %}Ronde réalisée{% endblock %}
+
+{% block contenu %}
+  <p class="no-print">
+    <a href="{% url 'rondes_du_jour' %}?date={{ quand|date:'Y-m-d' }}">&larr; Rondes du {{ quand|date:"d/m/Y" }}</a>
+    {% if user.is_staff %} | <a href="{% url 'admin:maintenance_ronderealisee_change' realisation.id %}">Modifier dans l'administration</a>{% endif %}
+  </p>
+
+  <h1>{{ realisation.ronde.nom }}</h1>
+
+  <dl>
+    <dt>Réalisée le</dt><dd>{{ quand|date:"d/m/Y à H:i" }}</dd>
+    <dt>Intervenant</dt><dd>{{ realisation.intervenant|default:"-" }}</dd>
+    <dt>Équipement</dt><dd>{{ realisation.ronde.equipement|default:"-" }}</dd>
+    <dt>Local</dt><dd>{{ realisation.ronde.local|default:"-" }}</dd>
+    <dt>Observations</dt><dd>{{ realisation.observations|default:"-"|linebreaksbr }}</dd>
+  </dl>
+
+  <h2>Relevés</h2>
+  {% if releves %}
+    <div class="table-scroll"><table>
+      <thead>
+        <tr><th>Point de contrôle</th><th>Valeur</th><th>Unité</th><th>Seuils</th><th>Résultat</th><th>Commentaire</th></tr>
+      </thead>
+      <tbody>
+        {% for r in releves %}
+          <tr>
+            <td>{{ r.point.libelle }}</td>
+            <td>
+              {% if r.point.type_releve == "mesure" %}{{ r.valeur|floatformat:"-3"|default:"-" }}
+              {% elif r.point.type_releve == "etat" %}{% if r.etat_ok is True %}OK{% elif r.etat_ok is False %}NOK{% else %}-{% endif %}
+              {% else %}-{% endif %}
+            </td>
+            <td>{{ r.point.unite|default:"" }}</td>
+            <td>
+              {% if r.point.seuil_min is not None %}mini {{ r.point.seuil_min|floatformat:"-3" }}{% endif %}
+              {% if r.point.seuil_max is not None %}maxi {{ r.point.seuil_max|floatformat:"-3" }}{% endif %}
+            </td>
+            <td><span class="badge {% if r.conforme %}faite{% else %}hors_seuil{% endif %}">{% if r.conforme %}Conforme{% else %}Hors seuil{% endif %}</span></td>
+            <td>{{ r.commentaire|default:"" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% else %}
+    <p class="vide">Aucun relevé : passage simple.</p>
+  {% endif %}
+{% endblock %}
