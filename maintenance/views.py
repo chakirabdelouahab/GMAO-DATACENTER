@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -15,7 +15,7 @@ from .models import (
     Equipement, Local, Lot, NonConformite, OrdreTravail, PointControle, Releve, Ronde,
     RondeRealisee,
 )
-from .notifications import notifier_hors_seuil
+from .notifications import notifier_hors_seuil, rondes_non_realisees
 
 
 @login_required
@@ -75,12 +75,56 @@ def tableau_de_bord(request):
     ).order_by("date_prevue")
     sans_date = actifs.filter(date_prevue__isnull=True).order_by("-date_creation")
 
+    # --- Maintenance préventive -----------------------------------------------------
+    preventifs = actifs.filter(type_ordre="preventif")
+    prev = {
+        "retard_ouverts": preventifs.filter(date_prevue__lt=aujourdhui, statut="ouvert").count(),
+        "retard_en_cours": preventifs.filter(date_prevue__lt=aujourdhui, statut="en_cours").count(),
+        "a_venir": preventifs.filter(
+            date_prevue__gte=aujourdhui, date_prevue__lte=horizon
+        ).count(),
+        "en_cours": preventifs.filter(statut="en_cours").count(),
+    }
+
+    # --- Non-conformités ------------------------------------------------------------
     # Tri sur la gravité : l'ordre alphabétique donne critique, majeure, mineure.
     nc_ouvertes = (
         NonConformite.objects.exclude(statut="cloturee")
         .select_related("equipement", "lot")
         .order_by("gravite", "date_echeance")
     )
+    compte_nc = dict(
+        NonConformite.objects.order_by().values_list("statut").annotate(n=Count("id"))
+    )
+    nc_par_statut = [
+        {"code": code, "libelle": libelle, "nb": compte_nc.get(code, 0)}
+        for code, libelle in NonConformite.STATUT_CHOICES
+        if code != "cloturee"
+    ]
+    nc_a_cloturer = nc_ouvertes.filter(date_echeance__lt=aujourdhui).count()
+
+    # --- Équipements ----------------------------------------------------------------
+    compte_criticite = dict(
+        Equipement.objects.order_by().values_list("criticite").annotate(n=Count("id"))
+    )
+    equip_par_criticite = [
+        {"code": code, "libelle": libelle, "nb": compte_criticite.get(code, 0)}
+        for code, libelle in Equipement.CRITICITE_CHOICES
+    ]
+    equipements_alerte = Equipement.objects.filter(
+        statut__in=["panne", "veille", "hors_service"]
+    ).select_related("local").order_by("statut", "nom")
+
+    # --- Rondes du jour -------------------------------------------------------------
+    rondes = {
+        "realisees": RondeRealisee.objects.filter(
+            date_realisation__date=aujourdhui, statut="terminee"
+        ).count(),
+        "non_realisees": len(rondes_non_realisees(aujourdhui)),
+        "hors_seuil": Releve.objects.filter(
+            conforme=False, ronde_realisee__date_realisation__date=aujourdhui
+        ).count(),
+    }
 
     contexte = {
         "aujourdhui": aujourdhui,
@@ -88,17 +132,118 @@ def tableau_de_bord(request):
         "nb_en_cours": OrdreTravail.objects.filter(statut="en_cours").count(),
         "nb_en_retard": en_retard.count(),
         "nb_a_venir": a_venir.count(),
+        "nb_sans_date": sans_date.count(),
         "en_retard": en_retard,
         "a_venir": a_venir,
         "sans_date": sans_date,
+        "prev": prev,
         "nb_nc_ouvertes": nc_ouvertes.count(),
         "nb_nc_critiques": nc_ouvertes.filter(gravite="critique").count(),
+        "nb_nc_a_cloturer": nc_a_cloturer,
         "nc_ouvertes": nc_ouvertes,
-        "equipements_alerte": Equipement.objects.filter(
-            statut__in=["panne", "veille", "hors_service"]
-        ).select_related("local").order_by("statut", "nom"),
+        "nc_par_statut": nc_par_statut,
+        "equip_par_criticite": equip_par_criticite,
+        "nb_equip_alerte": equipements_alerte.count(),
+        "equipements_alerte": equipements_alerte,
+        "rondes": rondes,
     }
     return render(request, "maintenance/tableau_de_bord.html", contexte)
+
+@login_required
+def detail_indicateur(request, code):
+    """Page de détail ouverte en cliquant sur un chiffre du tableau de bord."""
+    aujourdhui = date.today()
+    horizon = aujourdhui + timedelta(days=14)
+
+    actifs = OrdreTravail.objects.filter(
+        statut__in=["ouvert", "en_cours"]
+    ).select_related("equipement", "technicien")
+    preventifs = actifs.filter(type_ordre="preventif")
+    nc_base = NonConformite.objects.select_related("equipement", "lot")
+    nc_ouvertes = nc_base.exclude(statut="cloturee")
+    equipements = Equipement.objects.select_related("local", "lot")
+
+    type_liste = "ordres"
+    if code == "ordres_ouverts":
+        titre, objets = "Ordres ouverts", actifs.filter(statut="ouvert")
+    elif code == "ordres_en_cours":
+        titre, objets = "Ordres en cours", actifs.filter(statut="en_cours")
+    elif code == "ordres_retard":
+        titre, objets = "Ordres en retard", actifs.filter(date_prevue__lt=aujourdhui)
+    elif code == "ordres_avenir":
+        titre = "Ordres à venir (14 jours)"
+        objets = actifs.filter(date_prevue__gte=aujourdhui, date_prevue__lte=horizon)
+    elif code == "ordres_sans_date":
+        titre, objets = "Ordres actifs sans date prévue", actifs.filter(date_prevue__isnull=True)
+    elif code == "prev_retard_ouverts":
+        titre = "Préventifs en retard non entamés"
+        objets = preventifs.filter(date_prevue__lt=aujourdhui, statut="ouvert")
+    elif code == "prev_retard_en_cours":
+        titre = "Préventifs en retard en cours"
+        objets = preventifs.filter(date_prevue__lt=aujourdhui, statut="en_cours")
+    elif code == "prev_avenir":
+        titre = "Préventifs à venir (14 jours)"
+        objets = preventifs.filter(date_prevue__gte=aujourdhui, date_prevue__lte=horizon)
+    elif code == "prev_en_cours":
+        titre, objets = "Préventifs en cours", preventifs.filter(statut="en_cours")
+    elif code.startswith("nc_statut_"):
+        statut = code[len("nc_statut_"):]
+        libelles = dict(NonConformite.STATUT_CHOICES)
+        if statut not in libelles:
+            raise Http404
+        type_liste = "nc"
+        titre, objets = f"Non-conformités : {libelles[statut]}", nc_base.filter(statut=statut)
+    elif code == "nc_critiques":
+        type_liste = "nc"
+        titre, objets = "Non-conformités critiques non clôturées", nc_ouvertes.filter(gravite="critique")
+    elif code == "nc_depassees":
+        type_liste = "nc"
+        titre = "Non-conformités à échéance dépassée"
+        objets = nc_ouvertes.filter(date_echeance__lt=aujourdhui)
+    elif code == "rondes_realisees":
+        type_liste = "realisations"
+        titre = "Rondes réalisées aujourd'hui"
+        objets = RondeRealisee.objects.filter(
+            date_realisation__date=aujourdhui, statut="terminee"
+        ).select_related("ronde", "intervenant").order_by("date_realisation")
+    elif code == "rondes_non_realisees":
+        type_liste = "rondes"
+        titre, objets = "Rondes non réalisées", rondes_non_realisees(aujourdhui)
+    elif code == "rondes_hors_seuil":
+        type_liste = "releves"
+        titre = "Valeurs hors seuil du jour"
+        objets = Releve.objects.filter(
+            conforme=False, ronde_realisee__date_realisation__date=aujourdhui
+        ).select_related(
+            "point", "ronde_realisee", "ronde_realisee__ronde", "ronde_realisee__intervenant"
+        ).order_by("-ronde_realisee__date_realisation")
+    elif code.startswith("equip_criticite_"):
+        criticite = code[len("equip_criticite_"):]
+        libelles = dict(Equipement.CRITICITE_CHOICES)
+        if criticite not in libelles:
+            raise Http404
+        type_liste = "equipements"
+        titre = f"Équipements de criticité : {libelles[criticite]}"
+        objets = equipements.filter(criticite=criticite).order_by("nom")
+    elif code == "equip_non_service":
+        type_liste = "equipements"
+        titre = "Équipements non en service"
+        objets = equipements.filter(statut__in=["panne", "veille", "hors_service"]).order_by("statut", "nom")
+    else:
+        raise Http404
+
+    if type_liste == "ordres":
+        objets = objets.order_by("date_prevue", "equipement__nom")
+    elif type_liste == "nc":
+        objets = objets.order_by("gravite", "date_echeance")
+
+    contexte = {
+        "titre": titre,
+        "type_liste": type_liste,
+        "objets": objets,
+        "aujourdhui": aujourdhui,
+    }
+    return render(request, "maintenance/detail_indicateur.html", contexte)
 
 
 @login_required

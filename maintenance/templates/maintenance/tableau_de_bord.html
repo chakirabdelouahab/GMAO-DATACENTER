@@ -2,15 +2,118 @@
 {% block titre %}Tableau de bord{% endblock %}
 
 {% block contenu %}
+  <style>
+    .tb-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 16px 0 28px; }
+    .tb-carte { background: #f8f8f8; border: 1px solid #ddd; border-radius: 6px; padding: 16px 18px; display: flex; flex-direction: column; }
+    .tb-large { grid-column: span 2; }
+    @media (max-width: 700px) { .tb-large { grid-column: span 1; } }
+    .tb-entete { display: flex; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid #e2e2e2; margin-bottom: 12px; }
+    .tb-icone { font-size: 30px; line-height: 1; }
+    .tb-titre { font-size: 19px; font-weight: 700; margin: 0; }
+    .tb-rouge .tb-titre { color: #d6194f; }
+    .tb-bleu .tb-titre { color: #1a9fd9; }
+    .tb-vert .tb-titre { color: #2fb82f; }
+    .tb-orange .tb-titre { color: #e8761a; }
+    .tb-compteurs { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 14px 10px; text-align: center; }
+    .tb-compteur { text-decoration: none; color: inherit; }
+    .tb-libelle { display: block; font-size: 13px; font-weight: 600; color: #444; }
+    .tb-nombre { display: block; font-size: 28px; font-weight: 700; line-height: 1.3; }
+    .tb-nombre.c-bleu { color: #1a9fd9; }
+    .tb-nombre.c-rouge { color: #d6194f; }
+    .tb-nombre.c-vert { color: #2fb82f; }
+    .tb-nombre.c-orange { color: #e8761a; }
+    .tb-nombre.c-gris { color: #999; }
+    .tb-pied { margin-top: auto; padding-top: 12px; text-align: right; font-size: 13px; }
+    .tb-pied a { color: #e8561a; font-style: italic; text-decoration: none; }
+    .tb-pied a:hover { text-decoration: underline; }
+    a.tb-compteur:hover { background: #ececec; border-radius: 6px; }
+    a.tb-compteur:hover .tb-nombre { text-decoration: underline; }
+  </style>
+
   <h1>Tableau de bord</h1>
 
-  <div class="cartes">
-    <div class="carte"><div class="nombre">{{ nb_ouverts }}</div>Ordres ouverts</div>
-    <div class="carte"><div class="nombre">{{ nb_en_cours }}</div>En cours</div>
-    <div class="carte retard"><div class="nombre">{{ nb_en_retard }}</div>En retard</div>
-    <div class="carte avenir"><div class="nombre">{{ nb_a_venir }}</div>À venir (14 jours)</div>
-    <div class="carte"><div class="nombre">{{ nb_nc_ouvertes }}</div>Non-conformités non clôturées</div>
-    <div class="carte retard"><div class="nombre">{{ nb_nc_critiques }}</div>dont critiques</div>
+    <div class="tb-grille">
+
+    <!-- Ordres de travail -->
+    <div class="tb-carte tb-rouge">
+      <div class="tb-entete"><span class="tb-icone">📅</span><h2 class="tb-titre">Ordres de travail</h2></div>
+      <div class="tb-compteurs">
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'ordres_ouverts' %}">
+          <span class="tb-libelle">Ouverts</span><span class="tb-nombre c-bleu">{{ nb_ouverts }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'ordres_en_cours' %}">
+          <span class="tb-libelle">En cours</span><span class="tb-nombre c-bleu">{{ nb_en_cours }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'ordres_retard' %}">
+          <span class="tb-libelle">En retard</span><span class="tb-nombre {% if nb_en_retard %}c-rouge{% else %}c-vert{% endif %}">{{ nb_en_retard }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'ordres_avenir' %}">
+          <span class="tb-libelle">À venir (14 j)</span><span class="tb-nombre c-orange">{{ nb_a_venir }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'ordres_sans_date' %}">
+          <span class="tb-libelle">Sans date</span><span class="tb-nombre {% if nb_sans_date %}c-orange{% else %}c-gris{% endif %}">{{ nb_sans_date }}</span></a>
+      </div>
+      <div class="tb-pied"><a href="{% url 'admin:maintenance_ordretravail_changelist' %}">☰ Voir tous les ordres</a></div>
+    </div>
+
+    <!-- Maintenance préventive -->
+    <div class="tb-carte tb-vert">
+      <div class="tb-entete"><span class="tb-icone">⚙️</span><h2 class="tb-titre">Maintenance préventive</h2></div>
+      <div class="tb-compteurs">
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'prev_retard_ouverts' %}">
+          <span class="tb-libelle">En retard non entamés</span><span class="tb-nombre {% if prev.retard_ouverts %}c-rouge{% else %}c-vert{% endif %}">{{ prev.retard_ouverts }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'prev_retard_en_cours' %}">
+          <span class="tb-libelle">En retard en cours</span><span class="tb-nombre {% if prev.retard_en_cours %}c-rouge{% else %}c-vert{% endif %}">{{ prev.retard_en_cours }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'prev_avenir' %}">
+          <span class="tb-libelle">À venir (14 j)</span><span class="tb-nombre c-orange">{{ prev.a_venir }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'prev_en_cours' %}">
+          <span class="tb-libelle">En cours</span><span class="tb-nombre c-bleu">{{ prev.en_cours }}</span></a>
+      </div>
+      <div class="tb-pied"><a href="{% url 'admin:maintenance_ordretravail_changelist' %}?type_ordre__exact=preventif">☰ Voir tous les préventifs</a></div>
+    </div>
+
+    <!-- Non-conformités par statut -->
+    <div class="tb-carte tb-bleu tb-large">
+      <div class="tb-entete"><span class="tb-icone">🔧</span><h2 class="tb-titre">État des non-conformités</h2></div>
+      <div class="tb-compteurs">
+        {% for s in nc_par_statut %}
+          <a class="tb-compteur" href="{% url 'detail_indicateur' 'nc_statut_'|add:s.code %}">
+            <span class="tb-libelle">{{ s.libelle }}</span>
+            <span class="tb-nombre {% if s.nb %}c-bleu{% else %}c-gris{% endif %}">{{ s.nb }}</span></a>
+        {% endfor %}
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'nc_critiques' %}">
+          <span class="tb-libelle">Critiques</span><span class="tb-nombre {% if nb_nc_critiques %}c-rouge{% else %}c-vert{% endif %}">{{ nb_nc_critiques }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'nc_depassees' %}">
+          <span class="tb-libelle">Échéance dépassée</span><span class="tb-nombre {% if nb_nc_a_cloturer %}c-rouge{% else %}c-vert{% endif %}">{{ nb_nc_a_cloturer }}</span></a>
+      </div>
+      <div class="tb-pied"><a href="{% url 'rapport_non_conformites' %}">☰ Voir toutes les non-conformités</a></div>
+    </div>
+
+    <!-- Rondes du jour -->
+    <div class="tb-carte tb-orange">
+      <div class="tb-entete"><span class="tb-icone">📋</span><h2 class="tb-titre">Rondes du jour</h2></div>
+      <div class="tb-compteurs">
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'rondes_realisees' %}">
+          <span class="tb-libelle">Réalisées</span><span class="tb-nombre c-vert">{{ rondes.realisees }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'rondes_non_realisees' %}">
+          <span class="tb-libelle">Non réalisées</span><span class="tb-nombre {% if rondes.non_realisees %}c-orange{% else %}c-vert{% endif %}">{{ rondes.non_realisees }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'rondes_hors_seuil' %}">
+          <span class="tb-libelle">Valeurs hors seuil</span><span class="tb-nombre {% if rondes.hors_seuil %}c-rouge{% else %}c-vert{% endif %}">{{ rondes.hors_seuil }}</span></a>
+      </div>
+      <div class="tb-pied"><a href="{% url 'rondes_du_jour' %}">☰ Voir les rondes du jour</a></div>
+    </div>
+
+    <!-- Équipements -->
+    <div class="tb-carte tb-rouge">
+      <div class="tb-entete"><span class="tb-icone">🏥</span><h2 class="tb-titre">Équipements</h2></div>
+      <div class="tb-compteurs">
+        {% for c in equip_par_criticite %}
+          <a class="tb-compteur" href="{% url 'detail_indicateur' 'equip_criticite_'|add:c.code %}">
+            <span class="tb-libelle">{{ c.libelle }}</span><span class="tb-nombre c-bleu">{{ c.nb }}</span></a>
+        {% endfor %}
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'equip_non_service' %}">
+          <span class="tb-libelle">Non en service</span>
+          <span class="tb-nombre {% if nb_equip_alerte %}c-rouge{% else %}c-vert{% endif %}">{{ nb_equip_alerte }}</span></a>
+      </div>
+      <div class="tb-pied"><a href="{% url 'liste_equipements' %}">☰ Voir tous les équipements</a></div>
+    </div>
+
   </div>
 
   <h2>Ordres en retard</h2>
@@ -104,7 +207,7 @@
     <p class="vide">Aucune non-conformité non clôturée.</p>
   {% endif %}
 
-  <h2>Équipements non en service</h2>
+  <h2 id="equipements-alerte">Équipements non en service</h2>
   {% if equipements_alerte %}
     <div class="table-scroll"><table>
       <thead><tr><th>Équipement</th><th>Local</th><th>Criticité</th><th>Statut</th></tr></thead>

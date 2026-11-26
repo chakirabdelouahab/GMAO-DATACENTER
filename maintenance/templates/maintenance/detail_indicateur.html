@@ -1,0 +1,116 @@
+{% extends "maintenance/base.html" %}
+{% block titre %}{{ titre }}{% endblock %}
+
+{% block contenu %}
+  <p><a href="{% url 'tableau_de_bord' %}">← Retour au tableau de bord</a></p>
+  <h1>{{ titre }} ({{ objets|length }})</h1>
+
+  {% if not objets %}
+    <p class="vide">Aucun élément.</p>
+
+  {% elif type_liste == "ordres" %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Date prévue</th><th>Ordre</th><th>Équipement</th><th>Type</th><th>Priorité</th><th>Statut</th><th>Technicien</th></tr></thead>
+      <tbody>
+        {% for o in objets %}
+          <tr>
+            <td>{{ o.date_prevue|date:"d/m/Y"|default:"-" }}</td>
+            <td><a href="{% url 'admin:maintenance_ordretravail_change' o.id %}">{{ o.titre }}</a></td>
+            <td><a href="{% url 'fiche_equipement' o.equipement.id %}">{{ o.equipement }}</a></td>
+            <td>{{ o.get_type_ordre_display }}</td>
+            <td>{{ o.get_priorite_display }}</td>
+            <td>{{ o.get_statut_display }}</td>
+            <td>{{ o.technicien|default:"-" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+
+  {% elif type_liste == "nc" %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Réf.</th><th>Titre</th><th>Lot</th><th>Équipement</th><th>Gravité</th><th>Statut</th><th>Échéance</th></tr></thead>
+      <tbody>
+        {% for n in objets %}
+          <tr>
+            <td>{{ n.reference }}</td>
+            <td><a href="{% url 'fiche_non_conformite' n.id %}">{{ n.titre }}</a></td>
+            <td>{{ n.lot.code|default:"-" }}</td>
+            <td>{% if n.equipement %}<a href="{% url 'fiche_equipement' n.equipement.id %}">{{ n.equipement }}</a>{% else %}-{% endif %}</td>
+            <td {% if n.gravite == 'critique' %}class="crit-critique"{% endif %}>{{ n.get_gravite_display }}</td>
+            <td>{{ n.get_statut_display }}</td>
+            <td>
+              {% if n.date_echeance %}
+                {% if n.date_echeance < aujourdhui and n.statut != "cloturee" %}<strong class="crit-critique">{{ n.date_echeance|date:"d/m/Y" }} (dépassée)</strong>{% else %}{{ n.date_echeance|date:"d/m/Y" }}{% endif %}
+              {% else %}-{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+
+  {% elif type_liste == "realisations" %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Heure</th><th>Ronde</th><th>Intervenant</th><th>Détail</th></tr></thead>
+      <tbody>
+        {% for r in objets %}
+          <tr>
+            <td>{{ r.date_realisation|date:"H:i" }}</td>
+            <td>{{ r.ronde.nom }}</td>
+            <td>{{ r.intervenant|default:"-" }}</td>
+            <td><a href="{% url 'detail_realisation' r.id %}">Voir le détail</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+
+  {% elif type_liste == "rondes" %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Ronde</th><th>Catégorie</th><th>Horaire</th><th>Équipement</th><th>Local</th><th></th></tr></thead>
+      <tbody>
+        {% for r in objets %}
+          <tr>
+            <td>{{ r.nom }}</td>
+            <td>{{ r.get_categorie_display }}</td>
+            <td>{{ r.horaire|time:"H:i" }}</td>
+            <td>{{ r.equipement|default:"-" }}</td>
+            <td>{{ r.local|default:"-" }}</td>
+            <td><a href="{% url 'saisir_ronde' r.id %}">Saisir</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+
+  {% elif type_liste == "releves" %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Heure</th><th>Ronde</th><th>Point de contrôle</th><th>Valeur</th><th>Intervenant</th><th>Détail</th></tr></thead>
+      <tbody>
+        {% for r in objets %}
+          <tr>
+            <td>{{ r.ronde_realisee.date_realisation|date:"H:i" }}</td>
+            <td>{{ r.ronde_realisee.ronde.nom }}</td>
+            <td>{{ r.point.libelle }}</td>
+            <td class="crit-critique">{% if r.point.type_releve == "mesure" %}{{ r.valeur|floatformat:"-2" }} {{ r.point.unite }}{% else %}NOK{% endif %}</td>
+            <td>{{ r.ronde_realisee.intervenant|default:"-" }}</td>
+            <td><a href="{% url 'detail_realisation' r.ronde_realisee_id %}">Voir la ronde</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+
+  {% elif type_liste == "equipements" %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Équipement</th><th>Lot</th><th>Local</th><th>Criticité</th><th>Statut</th></tr></thead>
+      <tbody>
+        {% for e in objets %}
+          <tr>
+            <td><a href="{% url 'fiche_equipement' e.id %}">{{ e.nom }}</a></td>
+            <td>{{ e.lot.code|default:"-" }}</td>
+            <td>{{ e.local|default:"-" }}</td>
+            <td>{{ e.get_criticite_display }}</td>
+            <td>{{ e.get_statut_display }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endif %}
+{% endblock %}

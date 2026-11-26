@@ -9,6 +9,7 @@ urlpatterns = [
     path("ordres/imprimer/", views.imprimer_ordres, name="imprimer_ordres"),
     path("ordres/<int:pk>/imprimer/", views.imprimer_ordre, name="imprimer_ordre"),
     path("rondes/", views.rondes_du_jour, name="rondes_du_jour"),
+    path("indicateur/<str:code>/", views.detail_indicateur, name="detail_indicateur"),
     path("rondes/<int:pk>/saisir/", views.saisir_ronde, name="saisir_ronde"),
     path("rondes/<int:pk>/passage/", views.valider_passage, name="valider_passage"),
     path("rondes/realisations/<int:pk>/", views.detail_realisation, name="detail_realisation"),
