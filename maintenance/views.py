@@ -48,6 +48,46 @@ def _ordres_sans_rapport():
     )
 
 
+MOIS_COURTS = ["janv.", "févr.", "mars", "avr.", "mai", "juin",
+               "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+
+
+def _debut_mois(jour, decalage=0):
+    """Premier jour du mois, décalé de « decalage » mois (négatif = passé)."""
+    rang = jour.year * 12 + (jour.month - 1) + decalage
+    return date(rang // 12, rang % 12 + 1, 1)
+
+
+def _mois_depuis_code(texte):
+    """Lit « 2026-11 » dans l'adresse d'une page de détail."""
+    try:
+        annee, mois = texte.split("-")
+        return date(int(annee), int(mois), 1)
+    except ValueError:
+        raise Http404
+
+
+def _hauteur(valeur, maximum):
+    """Hauteur d'une barre en % (entier : la virgule décimale française casserait le CSS)."""
+    if not valeur or not maximum:
+        return 0
+    return max(4, round(100 * valeur / maximum))
+
+
+def _anneau(segments):
+    """Fond CSS d'un graphique en anneau. segments : liste de dicts avec « valeur » et « couleur »."""
+    total = sum(s["valeur"] for s in segments)
+    if not total:
+        return "#e5e5e5"
+    morceaux, debut = [], 0.0
+    for s in segments:
+        fin = debut + 100 * s["valeur"] / total
+        if s["valeur"]:
+            morceaux.append(f"{s['couleur']} {debut:.2f}% {fin:.2f}%")
+        debut = fin
+    return "conic-gradient(" + ", ".join(morceaux) + ")"
+
+
 @login_required
 def liste_equipements(request):
     equipements = Equipement.objects.select_related("local", "lot").order_by("nom")
@@ -94,35 +134,24 @@ def liste_equipements(request):
 def tableau_de_bord(request):
     aujourdhui = date.today()
     horizon = aujourdhui + timedelta(days=14)
+    lundi = aujourdhui - timedelta(days=aujourdhui.weekday())
 
-    actifs = OrdreTravail.objects.filter(
-        statut__in=["ouvert", "en_cours"]
-    ).select_related("equipement", "technicien")
-
-    en_retard = actifs.filter(date_prevue__lt=aujourdhui).order_by("date_prevue")
-    a_venir = actifs.filter(
-        date_prevue__gte=aujourdhui, date_prevue__lte=horizon
-    ).order_by("date_prevue")
-    sans_date = actifs.filter(date_prevue__isnull=True).order_by("-date_creation")
+    actifs = OrdreTravail.objects.filter(statut__in=["ouvert", "en_cours"])
+    en_retard = actifs.filter(date_prevue__lt=aujourdhui)
+    a_venir = actifs.filter(date_prevue__gte=aujourdhui, date_prevue__lte=horizon)
+    sans_date = actifs.filter(date_prevue__isnull=True)
 
     # --- Maintenance préventive -----------------------------------------------------
     preventifs = actifs.filter(type_ordre="preventif")
     prev = {
         "retard_ouverts": preventifs.filter(date_prevue__lt=aujourdhui, statut="ouvert").count(),
         "retard_en_cours": preventifs.filter(date_prevue__lt=aujourdhui, statut="en_cours").count(),
-        "a_venir": preventifs.filter(
-            date_prevue__gte=aujourdhui, date_prevue__lte=horizon
-        ).count(),
+        "a_venir": preventifs.filter(date_prevue__gte=aujourdhui, date_prevue__lte=horizon).count(),
         "en_cours": preventifs.filter(statut="en_cours").count(),
     }
 
     # --- Non-conformités ------------------------------------------------------------
-    # Tri sur la gravité : l'ordre alphabétique donne critique, majeure, mineure.
-    nc_ouvertes = (
-        NonConformite.objects.exclude(statut="cloturee")
-        .select_related("equipement", "lot")
-        .order_by("gravite", "date_echeance")
-    )
+    nc_ouvertes = NonConformite.objects.exclude(statut="cloturee")
     compte_nc = dict(
         NonConformite.objects.order_by().values_list("statut").annotate(n=Count("id"))
     )
@@ -141,9 +170,9 @@ def tableau_de_bord(request):
         {"code": code, "libelle": libelle, "nb": compte_criticite.get(code, 0)}
         for code, libelle in Equipement.CRITICITE_CHOICES
     ]
-    equipements_alerte = Equipement.objects.filter(
+    nb_equip_alerte = Equipement.objects.filter(
         statut__in=["panne", "veille", "hors_service"]
-    ).select_related("local").order_by("statut", "nom")
+    ).count()
 
     # --- Rondes du jour -------------------------------------------------------------
     rondes = {
@@ -156,6 +185,114 @@ def tableau_de_bord(request):
         ).count(),
     }
 
+    # === Graphiques ==================================================================
+
+    # 1. Ordres par statut (anneau)
+    libelles_statut = dict(OrdreTravail.STATUT_CHOICES)
+    couleurs_statut = {
+        "ouvert": "#1a9fd9", "en_cours": "#e8761a", "termine": "#2fb82f", "annule": "#9aa0a6",
+    }
+    compte_statut = dict(
+        OrdreTravail.objects.order_by().values_list("statut").annotate(n=Count("id"))
+    )
+    graphe_statuts = [
+        {
+            "code": code, "libelle": libelles_statut[code],
+            "valeur": compte_statut.get(code, 0), "couleur": couleurs_statut[code],
+        }
+        for code in ("ouvert", "en_cours", "termine", "annule")
+    ]
+
+    # 2. Non-conformités non clôturées par gravité (anneau)
+    couleurs_gravite = {"mineure": "#e8c21a", "majeure": "#e8761a", "critique": "#d6194f"}
+    compte_gravite = dict(
+        nc_ouvertes.order_by().values_list("gravite").annotate(n=Count("id"))
+    )
+    graphe_gravite = [
+        {
+            "code": code, "libelle": libelle,
+            "valeur": compte_gravite.get(code, 0), "couleur": couleurs_gravite[code],
+        }
+        for code, libelle in NonConformite.GRAVITE_CHOICES
+    ]
+
+    # 3. Charge à venir : en retard, puis 8 semaines
+    nb_semaines = 8
+    charge = [0] * (nb_semaines + 1)  # indice 0 = en retard
+    dates_prevues = actifs.filter(date_prevue__isnull=False).values_list("date_prevue", flat=True)
+    for jour in dates_prevues:
+        if jour < aujourdhui:
+            charge[0] += 1
+        else:
+            rang = (jour - lundi).days // 7
+            if rang < nb_semaines:
+                charge[rang + 1] += 1
+    maximum = max(charge)
+    graphe_charge = [{
+        "libelle": "Retard", "sous": "", "valeur": charge[0],
+        "hauteur": _hauteur(charge[0], maximum), "classe": "c-rouge", "code": "ordres_retard",
+    }]
+    for i in range(nb_semaines):
+        debut = lundi + timedelta(weeks=i)
+        graphe_charge.append({
+            "libelle": f"S{debut.isocalendar().week}", "sous": f"{debut:%d/%m}",
+            "valeur": charge[i + 1], "hauteur": _hauteur(charge[i + 1], maximum),
+            "classe": "c-bleu", "code": f"charge_{debut.isoformat()}",
+        })
+
+    # 4 et 5. Six derniers mois : ordres terminés, taux de réalisation du préventif
+    mois = [_debut_mois(aujourdhui, d) for d in range(-5, 1)]
+    fin_periode = _debut_mois(aujourdhui, 1)
+
+    par_mois = {m: {"preventif": 0, "correctif": 0} for m in mois}
+    termines = OrdreTravail.objects.filter(
+        statut="termine", date_cloture__gte=mois[0], date_cloture__lt=fin_periode
+    ).values_list("date_cloture", "type_ordre")
+    for cloture, type_ordre in termines:
+        par_mois[cloture.replace(day=1)][type_ordre] += 1
+    maximum = max((v["preventif"] + v["correctif"] for v in par_mois.values()), default=0)
+    graphe_termines = []
+    for m in mois:
+        v = par_mois[m]
+        total = v["preventif"] + v["correctif"]
+        part_prev = round(100 * v["preventif"] / total) if total else 0
+        graphe_termines.append({
+            "libelle": MOIS_COURTS[m.month - 1], "sous": str(m.year), "valeur": total,
+            "prev": v["preventif"], "corr": v["correctif"],
+            "hauteur": _hauteur(total, maximum),
+            "part_prev": part_prev, "part_corr": 100 - part_prev if total else 0,
+            "code": f"termines_{m:%Y-%m}",
+        })
+
+    taux = {m: [0, 0] for m in mois}  # [prévus, terminés]
+    prevus = OrdreTravail.objects.filter(
+        type_ordre="preventif", date_prevue__gte=mois[0], date_prevue__lt=fin_periode
+    ).exclude(statut="annule").values_list("date_prevue", "statut")
+    for prevue, statut in prevus:
+        ligne = taux[prevue.replace(day=1)]
+        ligne[0] += 1
+        if statut == "termine":
+            ligne[1] += 1
+    graphe_taux = []
+    for m in mois:
+        prevus_mois, faits = taux[m]
+        pct = round(100 * faits / prevus_mois) if prevus_mois else None
+        if pct is None:
+            classe = "c-gris"
+        elif pct >= 80:
+            classe = "c-vert"
+        elif pct >= 50:
+            classe = "c-orange"
+        else:
+            classe = "c-rouge"
+        graphe_taux.append({
+            "libelle": MOIS_COURTS[m.month - 1], "sous": str(m.year),
+            "valeur": f"{pct} %" if pct is not None else "-",
+            "titre": f"{faits} terminé(s) sur {prevus_mois} prévu(s)",
+            "hauteur": max(3, pct) if pct else 0, "classe": classe,
+            "code": f"prev_mois_{m:%Y-%m}",
+        })
+
     contexte = {
         "aujourdhui": aujourdhui,
         "nb_ouverts": OrdreTravail.objects.filter(statut="ouvert").count(),
@@ -164,19 +301,23 @@ def tableau_de_bord(request):
         "nb_a_venir": a_venir.count(),
         "nb_sans_date": sans_date.count(),
         "nb_sans_rapport": _ordres_sans_rapport().count(),
-        "en_retard": en_retard,
-        "a_venir": a_venir,
-        "sans_date": sans_date,
         "prev": prev,
         "nb_nc_ouvertes": nc_ouvertes.count(),
         "nb_nc_critiques": nc_ouvertes.filter(gravite="critique").count(),
         "nb_nc_a_cloturer": nc_a_cloturer,
-        "nc_ouvertes": nc_ouvertes,
         "nc_par_statut": nc_par_statut,
         "equip_par_criticite": equip_par_criticite,
-        "nb_equip_alerte": equipements_alerte.count(),
-        "equipements_alerte": equipements_alerte,
+        "nb_equip_alerte": nb_equip_alerte,
         "rondes": rondes,
+        "graphe_statuts": graphe_statuts,
+        "fond_statuts": _anneau(graphe_statuts),
+        "total_ordres": sum(s["valeur"] for s in graphe_statuts),
+        "graphe_gravite": graphe_gravite,
+        "fond_gravite": _anneau(graphe_gravite),
+        "total_nc": sum(s["valeur"] for s in graphe_gravite),
+        "graphe_charge": graphe_charge,
+        "graphe_termines": graphe_termines,
+        "graphe_taux": graphe_taux,
     }
     return render(request, "maintenance/tableau_de_bord.html", contexte)
 
@@ -262,6 +403,44 @@ def detail_indicateur(request, code):
         type_liste = "equipements"
         titre = "Équipements non en service"
         objets = equipements.filter(statut__in=["panne", "veille", "hors_service"]).order_by("statut", "nom")
+    # --- Pages ouvertes depuis les graphiques ---
+    elif code.startswith("ordres_statut_"):
+        statut = code[len("ordres_statut_"):]
+        libelles = dict(OrdreTravail.STATUT_CHOICES)
+        if statut not in libelles:
+            raise Http404
+        titre = f"Ordres : {libelles[statut]}"
+        objets = OrdreTravail.objects.filter(statut=statut).select_related("equipement", "technicien")
+    elif code.startswith("charge_"):
+        try:
+            lundi_semaine = date.fromisoformat(code[len("charge_"):])
+        except ValueError:
+            raise Http404
+        titre = f"Ordres prévus la semaine du {lundi_semaine:%d/%m/%Y}"
+        objets = actifs.filter(
+            date_prevue__gte=max(lundi_semaine, aujourdhui),
+            date_prevue__lt=lundi_semaine + timedelta(days=7),
+        )
+    elif code.startswith("termines_"):
+        mois = _mois_depuis_code(code[len("termines_"):])
+        titre = f"Ordres terminés en {mois:%m/%Y}"
+        objets = OrdreTravail.objects.filter(
+            statut="termine", date_cloture__year=mois.year, date_cloture__month=mois.month
+        ).select_related("equipement", "technicien")
+    elif code.startswith("prev_mois_"):
+        mois = _mois_depuis_code(code[len("prev_mois_"):])
+        titre = f"Préventifs prévus en {mois:%m/%Y} (hors annulés)"
+        objets = OrdreTravail.objects.filter(
+            type_ordre="preventif", date_prevue__year=mois.year, date_prevue__month=mois.month
+        ).exclude(statut="annule").select_related("equipement", "technicien")
+    elif code.startswith("nc_gravite_"):
+        gravite = code[len("nc_gravite_"):]
+        libelles = dict(NonConformite.GRAVITE_CHOICES)
+        if gravite not in libelles:
+            raise Http404
+        type_liste = "nc"
+        titre = f"Non-conformités {libelles[gravite].lower()}s non clôturées"
+        objets = nc_ouvertes.filter(gravite=gravite)
     else:
         raise Http404
 

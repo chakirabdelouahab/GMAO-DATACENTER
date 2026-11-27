@@ -3,10 +3,11 @@
 
 {% block contenu %}
   <style>
-    .tb-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 16px 0 28px; }
+    /* ===== Cartes de synthèse ===== */
+    .tb-zone { container-type: inline-size; }
+    .tb-grille { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 16px 0 28px; }
     .tb-carte { background: #f8f8f8; border: 1px solid #ddd; border-radius: 6px; padding: 16px 18px; display: flex; flex-direction: column; }
-    .tb-large { grid-column: span 2; }
-    @media (max-width: 700px) { .tb-large { grid-column: span 1; } }
+    .tb-grille .tb-large, .gr-grille .tb-large { grid-column: 1 / -1; order: 1; }
     .tb-entete { display: flex; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid #e2e2e2; margin-bottom: 12px; }
     .tb-icone { font-size: 30px; line-height: 1; }
     .tb-titre { font-size: 19px; font-weight: 700; margin: 0; }
@@ -14,8 +15,8 @@
     .tb-bleu .tb-titre { color: #1a9fd9; }
     .tb-vert .tb-titre { color: #2fb82f; }
     .tb-orange .tb-titre { color: #e8761a; }
-    .tb-compteurs { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 14px 10px; text-align: center; }
-    .tb-compteur { text-decoration: none; color: inherit; }
+    .tb-compteurs { display: flex; flex-wrap: wrap; justify-content: center; align-content: space-evenly; gap: 14px 8px; flex: 1; text-align: center; }
+    .tb-compteur { flex: 1 1 80px; min-width: 0; text-decoration: none; color: inherit; }
     .tb-libelle { display: block; font-size: 13px; font-weight: 600; color: #444; }
     .tb-nombre { display: block; font-size: 28px; font-weight: 700; line-height: 1.3; }
     .tb-nombre.c-bleu { color: #1a9fd9; }
@@ -28,11 +29,54 @@
     .tb-pied a:hover { text-decoration: underline; }
     a.tb-compteur:hover { background: #ececec; border-radius: 6px; }
     a.tb-compteur:hover .tb-nombre { text-decoration: underline; }
+
+    /* ===== Graphiques ===== */
+    .gr-grille { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 16px 0 28px; }
+    .gr-donut-zone { display: flex; align-items: center; justify-content: center; gap: 22px; flex-wrap: wrap; padding: 6px 0; }
+    .gr-donut { width: 150px; height: 150px; border-radius: 50%; position: relative; flex: none; }
+    .gr-donut-trou { position: absolute; inset: 30px; border-radius: 50%; background: #f8f8f8; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+    .gr-donut-trou strong { font-size: 26px; }
+    .gr-donut-trou span { font-size: 11px; color: #666; }
+    .gr-legende { list-style: none; margin: 0; padding: 0; }
+    .gr-legende li { margin: 7px 0; font-size: 14px; }
+    .gr-legende a { color: inherit; text-decoration: none; }
+    .gr-legende a:hover { text-decoration: underline; }
+    .gr-pastille { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; vertical-align: middle; }
+    .gr-barres { display: flex; gap: 6px; height: 210px; align-items: stretch; }
+    .gr-col { flex: 1; min-width: 0; display: flex; flex-direction: column; text-decoration: none; color: inherit; }
+    .gr-zone { position: relative; flex: 1; margin-top: 22px; border-bottom: 1px solid #bbb; }
+    .gr-barre, .gr-pile { position: absolute; bottom: 0; left: 14%; width: 72%; }
+    .gr-barre { border-radius: 4px 4px 0 0; }
+    .gr-pile { display: flex; flex-direction: column-reverse; }
+    .gr-seg { width: 100%; }
+    .gr-val { position: absolute; bottom: 100%; left: -10px; right: -10px; text-align: center; font-size: 12px; font-weight: 700; padding-bottom: 2px; white-space: nowrap; }
+    .gr-lib { text-align: center; font-size: 11px; font-weight: 600; margin-top: 4px; }
+    .gr-sous { text-align: center; font-size: 10px; color: #777; min-height: 12px; }
+    .gr-barre.c-bleu, .gr-seg.c-bleu { background: #1a9fd9; }
+    .gr-barre.c-orange, .gr-seg.c-orange { background: #e8761a; }
+    .gr-barre.c-rouge { background: #d6194f; }
+    .gr-barre.c-vert { background: #2fb82f; }
+    .gr-barre.c-gris { background: #bbb; }
+    a.gr-col:hover .gr-barre, a.gr-col:hover .gr-pile { opacity: .8; }
+    .gr-note { font-size: 12px; color: #666; margin-top: 10px; }
+
+    /* ===== Adaptation à la largeur disponible (sans espaces vides) ===== */
+    @container (min-width: 1400px) {
+      .tb-grille { grid-template-columns: repeat(4, 1fr); }
+    }
+    @container (min-width: 1050px) {
+      .gr-grille { grid-template-columns: repeat(3, 1fr); }
+      .gr-grille .tb-large { grid-column: span 2; order: 0; }
+    }
+    @container (max-width: 700px) {
+      .tb-grille, .gr-grille { grid-template-columns: 1fr; }
+    }
   </style>
 
   <h1>Tableau de bord</h1>
+  <div class="tb-zone">
 
-    <div class="tb-grille">
+  <div class="tb-grille">
 
     <!-- Ordres de travail -->
     <div class="tb-carte tb-rouge">
@@ -118,113 +162,90 @@
 
   </div>
 
-  <h2>Ordres en retard</h2>
-  {% if en_retard %}
-    <div class="table-scroll"><table>
-      <thead><tr><th>Date prévue</th><th>Ordre</th><th>Équipement</th><th>Type</th><th>Priorité</th><th>Statut</th><th>Technicien</th></tr></thead>
-      <tbody>
-        {% for o in en_retard %}
-          <tr>
-            <td>{{ o.date_prevue|date:"d/m/Y" }}</td>
-            <td><a href="{% url 'admin:maintenance_ordretravail_change' o.id %}">{{ o.titre }}</a></td>
-            <td><a href="{% url 'fiche_equipement' o.equipement.id %}">{{ o.equipement }}</a></td>
-            <td>{{ o.get_type_ordre_display }}</td>
-            <td>{{ o.get_priorite_display }}</td>
-            <td>{{ o.get_statut_display }}</td>
-            <td>{{ o.technicien|default:"-" }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table></div>
-  {% else %}
-    <p class="vide">Aucun ordre en retard.</p>
-  {% endif %}
+  <h2>Analyse</h2>
+  <div class="gr-grille">
 
-  <h2>Ordres à venir (14 prochains jours)</h2>
-  {% if a_venir %}
-    <div class="table-scroll"><table>
-      <thead><tr><th>Date prévue</th><th>Ordre</th><th>Équipement</th><th>Type</th><th>Priorité</th><th>Statut</th><th>Technicien</th></tr></thead>
-      <tbody>
-        {% for o in a_venir %}
-          <tr>
-            <td>{{ o.date_prevue|date:"d/m/Y" }}</td>
-            <td><a href="{% url 'admin:maintenance_ordretravail_change' o.id %}">{{ o.titre }}</a></td>
-            <td><a href="{% url 'fiche_equipement' o.equipement.id %}">{{ o.equipement }}</a></td>
-            <td>{{ o.get_type_ordre_display }}</td>
-            <td>{{ o.get_priorite_display }}</td>
-            <td>{{ o.get_statut_display }}</td>
-            <td>{{ o.technicien|default:"-" }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table></div>
-  {% else %}
-    <p class="vide">Aucun ordre prévu dans les 14 prochains jours.</p>
-  {% endif %}
+    <!-- Ordres par statut -->
+    <div class="tb-carte tb-bleu">
+      <div class="tb-entete"><span class="tb-icone">📊</span><h2 class="tb-titre">Ordres par statut</h2></div>
+      <div class="gr-donut-zone">
+        <div class="gr-donut" style="background: {{ fond_statuts }}">
+          <div class="gr-donut-trou"><strong>{{ total_ordres }}</strong><span>ordres</span></div>
+        </div>
+        <ul class="gr-legende">
+          {% for s in graphe_statuts %}
+            <li><a href="{% url 'detail_indicateur' 'ordres_statut_'|add:s.code %}"><span class="gr-pastille" style="background: {{ s.couleur }}"></span>{{ s.libelle }} <strong>{{ s.valeur }}</strong></a></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
 
-  <h2>Ordres actifs sans date prévue</h2>
-  {% if sans_date %}
-    <div class="table-scroll"><table>
-      <thead><tr><th>Créé le</th><th>Ordre</th><th>Équipement</th><th>Type</th><th>Priorité</th><th>Statut</th></tr></thead>
-      <tbody>
-        {% for o in sans_date %}
-          <tr>
-            <td>{{ o.date_creation|date:"d/m/Y" }}</td>
-            <td><a href="{% url 'admin:maintenance_ordretravail_change' o.id %}">{{ o.titre }}</a></td>
-            <td><a href="{% url 'fiche_equipement' o.equipement.id %}">{{ o.equipement }}</a></td>
-            <td>{{ o.get_type_ordre_display }}</td>
-            <td>{{ o.get_priorite_display }}</td>
-            <td>{{ o.get_statut_display }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table></div>
-  {% else %}
-    <p class="vide">Aucun ordre actif sans date.</p>
-  {% endif %}
+    <!-- Non-conformités par gravité -->
+    <div class="tb-carte tb-rouge">
+      <div class="tb-entete"><span class="tb-icone">⚠️</span><h2 class="tb-titre">Non-conformités ouvertes par gravité</h2></div>
+      <div class="gr-donut-zone">
+        <div class="gr-donut" style="background: {{ fond_gravite }}">
+          <div class="gr-donut-trou"><strong>{{ total_nc }}</strong><span>non clôturées</span></div>
+        </div>
+        <ul class="gr-legende">
+          {% for s in graphe_gravite %}
+            <li><a href="{% url 'detail_indicateur' 'nc_gravite_'|add:s.code %}"><span class="gr-pastille" style="background: {{ s.couleur }}"></span>{{ s.libelle }} <strong>{{ s.valeur }}</strong></a></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
 
-  <h2>Non-conformités non clôturées</h2>
-  {% if nc_ouvertes %}
-    <div class="table-scroll"><table>
-      <thead><tr><th>Réf.</th><th>Titre</th><th>Lot</th><th>Équipement</th><th>Gravité</th><th>Statut</th><th>Échéance</th></tr></thead>
-      <tbody>
-        {% for n in nc_ouvertes %}
-          <tr>
-            <td>{{ n.reference }}</td>
-            <td><a href="{% url 'admin:maintenance_nonconformite_change' n.id %}">{{ n.titre }}</a></td>
-            <td>{{ n.lot.code|default:"-" }}</td>
-            <td>{% if n.equipement %}<a href="{% url 'fiche_equipement' n.equipement.id %}">{{ n.equipement }}</a>{% else %}-{% endif %}</td>
-            <td {% if n.gravite == 'critique' %}class="crit-critique"{% endif %}>{{ n.get_gravite_display }}</td>
-            <td>{{ n.get_statut_display }}</td>
-            <td>
-              {% if n.date_echeance %}
-                {% if n.date_echeance < aujourdhui %}<strong class="crit-critique">{{ n.date_echeance|date:"d/m/Y" }} (dépassée)</strong>{% else %}{{ n.date_echeance|date:"d/m/Y" }}{% endif %}
-              {% else %}-{% endif %}
-            </td>
-          </tr>
+    <!-- Taux de réalisation du préventif -->
+    <div class="tb-carte tb-vert">
+      <div class="tb-entete"><span class="tb-icone">✅</span><h2 class="tb-titre">Réalisation du préventif</h2></div>
+      <div class="gr-barres">
+        {% for b in graphe_taux %}
+          <a class="gr-col" href="{% url 'detail_indicateur' b.code %}" title="{{ b.libelle }} {{ b.sous }} : {{ b.titre }}">
+            <div class="gr-zone"><div class="gr-barre {{ b.classe }}" style="height: {{ b.hauteur }}%"><span class="gr-val">{{ b.valeur }}</span></div></div>
+            <span class="gr-lib">{{ b.libelle }}</span><span class="gr-sous">{{ b.sous }}</span>
+          </a>
         {% endfor %}
-      </tbody>
-    </table></div>
-  {% else %}
-    <p class="vide">Aucune non-conformité non clôturée.</p>
-  {% endif %}
+      </div>
+      <div class="gr-note">Part des ordres préventifs prévus dans le mois qui sont terminés (hors annulés). Vert à 80 % et plus, orange à 50 % et plus.</div>
+    </div>
 
-  <h2 id="equipements-alerte">Équipements non en service</h2>
-  {% if equipements_alerte %}
-    <div class="table-scroll"><table>
-      <thead><tr><th>Équipement</th><th>Local</th><th>Criticité</th><th>Statut</th></tr></thead>
-      <tbody>
-        {% for e in equipements_alerte %}
-          <tr>
-            <td><a href="{% url 'fiche_equipement' e.id %}">{{ e.nom }}</a></td>
-            <td>{{ e.local|default:"-" }}</td>
-            <td>{{ e.get_criticite_display }}</td>
-            <td>{{ e.get_statut_display }}</td>
-          </tr>
+    <!-- Charge à venir -->
+    <div class="tb-carte tb-orange tb-large">
+      <div class="tb-entete"><span class="tb-icone">🗓️</span><h2 class="tb-titre">Charge de travail à venir</h2></div>
+      <div class="gr-barres">
+        {% for b in graphe_charge %}
+          <a class="gr-col" href="{% url 'detail_indicateur' b.code %}" title="{{ b.libelle }} : {{ b.valeur }} ordre(s)">
+            <div class="gr-zone"><div class="gr-barre {{ b.classe }}" style="height: {{ b.hauteur }}%"><span class="gr-val">{{ b.valeur }}</span></div></div>
+            <span class="gr-lib">{{ b.libelle }}</span><span class="gr-sous">{{ b.sous }}</span>
+          </a>
         {% endfor %}
-      </tbody>
-    </table></div>
-  {% else %}
-    <p class="vide">Tous les équipements sont en service.</p>
-  {% endif %}
+      </div>
+      <div class="gr-note">Ordres ouverts ou en cours, par semaine de date prévue. La première barre regroupe les ordres déjà en retard.</div>
+    </div>
+
+    <!-- Interventions terminées par mois -->
+    <div class="tb-carte tb-bleu">
+      <div class="tb-entete"><span class="tb-icone">🛠️</span><h2 class="tb-titre">Interventions terminées</h2></div>
+      <div class="gr-barres">
+        {% for m in graphe_termines %}
+          <a class="gr-col" href="{% url 'detail_indicateur' m.code %}" title="{{ m.libelle }} {{ m.sous }} : {{ m.prev }} préventif(s), {{ m.corr }} correctif(s)">
+            <div class="gr-zone">
+              <div class="gr-pile" style="height: {{ m.hauteur }}%">
+                <span class="gr-val">{{ m.valeur }}</span>
+                <div class="gr-seg c-bleu" style="height: {{ m.part_prev }}%"></div>
+                <div class="gr-seg c-orange" style="height: {{ m.part_corr }}%"></div>
+              </div>
+            </div>
+            <span class="gr-lib">{{ m.libelle }}</span><span class="gr-sous">{{ m.sous }}</span>
+          </a>
+        {% endfor %}
+      </div>
+      <div class="gr-note">
+        <span class="gr-pastille" style="background: #1a9fd9"></span>Préventif
+        &nbsp; <span class="gr-pastille" style="background: #e8761a"></span>Correctif
+      </div>
+    </div>
+
+  </div>
+  </div>
 {% endblock %}
