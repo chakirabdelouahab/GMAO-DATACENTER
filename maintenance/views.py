@@ -8,17 +8,34 @@ from django.views.static import serve
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .models import (
-    EcheancePlanning, Equipement, Local, Lot, NonConformite, OrdreTravail, PlanMaintenance,
-    PointControle, Releve, Ronde, RondeRealisee,
+    Equipement, Local, Lot, NonConformite, OrdreTravail, PieceJointe, PointControle,
+    Procedure, Releve, Ronde, RondeRealisee,
 )
 from .notifications import notifier_hors_seuil, rondes_non_realisees
+
+
+def _prefetch_procedures(chemin):
+    """Charge les MOP/SOP en vigueur dans l'attribut « procedures_en_vigueur »."""
+    return Prefetch(
+        chemin,
+        queryset=Procedure.objects.filter(statut="en_vigueur").order_by("type_procedure", "reference"),
+        to_attr="procedures_en_vigueur",
+    )
+
+
+def _trier_pieces(pieces):
+    """Sépare les pièces jointes : rapports signés, photos, autres documents."""
+    rapports = [p for p in pieces if p.type_piece == "rapport_signe"]
+    photos = [p for p in pieces if p.type_piece != "rapport_signe" and p.est_image]
+    autres = [p for p in pieces if p.type_piece != "rapport_signe" and not p.est_image]
+    return rapports, photos, autres
 
 
 @login_required
@@ -254,12 +271,33 @@ def fiche_equipement(request, pk):
     equipement = get_object_or_404(
         Equipement.objects.select_related("local", "lot", "parent"), pk=pk
     )
+    plans = equipement.plans.order_by("tache").prefetch_related(_prefetch_procedures("procedures"))
+    ordres = (
+        equipement.ordres.select_related("technicien")
+        .annotate(
+            nb_rapports=Count(
+                "pieces_jointes", filter=Q(pieces_jointes__type_piece="rapport_signe")
+            ),
+            nb_autres=Count(
+                "pieces_jointes",
+                filter=Q(pieces_jointes__type_piece__in=["photo_avant", "photo_apres", "photo", "autre"]),
+            ),
+        )
+        .order_by("-date_creation")
+    )
+    non_conformites = (
+        equipement.non_conformites.annotate(nb_pieces=Count("pieces_jointes"))
+        .order_by("-date_detection")
+    )
     contexte = {
         "equipement": equipement,
-        "plans": equipement.plans.order_by("tache"),
-        "ordres": equipement.ordres.select_related("technicien").order_by("-date_creation"),
+        "plans": plans,
+        "procedures": equipement.procedures.filter(statut="en_vigueur").order_by(
+            "type_procedure", "reference"
+        ),
+        "ordres": ordres,
         "sous_equipements": equipement.sous_equipements.order_by("nom"),
-        "non_conformites": equipement.non_conformites.order_by("-date_detection"),
+        "non_conformites": non_conformites,
     }
     return render(request, "maintenance/fiche_equipement.html", contexte)
 
@@ -269,7 +307,7 @@ def imprimer_ordre(request, pk):
     ordre = get_object_or_404(
         OrdreTravail.objects.select_related(
             "equipement", "equipement__local", "equipement__lot", "plan", "technicien"
-        ),
+        ).prefetch_related(_prefetch_procedures("plan__procedures")),
         pk=pk,
     )
     return render(request, "maintenance/imprimer_ordres.html", {"ordres": [ordre]})
@@ -279,7 +317,7 @@ def imprimer_ordre(request, pk):
 def imprimer_ordres(request):
     ordres = OrdreTravail.objects.select_related(
         "equipement", "equipement__local", "equipement__lot", "plan", "technicien"
-    )
+    ).prefetch_related(_prefetch_procedures("plan__procedures"))
     ids = request.GET.get("ids", "")
     if ids:
         liste = [int(i) for i in ids.split(",") if i.isdigit()]
@@ -694,16 +732,26 @@ def rapport_intervention(request, pk):
     ordre = get_object_or_404(
         OrdreTravail.objects.select_related(
             "equipement", "equipement__local", "equipement__lot", "plan", "technicien"
+        ).prefetch_related(
+            _prefetch_procedures("plan__procedures"),
+            Prefetch(
+                "pieces_jointes",
+                queryset=PieceJointe.objects.select_related("ajoute_par").order_by("date_ajout"),
+            ),
         ),
         pk=pk,
     )
     ecart = None
     if ordre.date_cloture and ordre.date_prevue:
         ecart = (ordre.date_cloture - ordre.date_prevue).days
+    rapports, photos, autres = _trier_pieces(ordre.pieces_jointes.all())
     contexte = {
         "ordre": ordre,
         "ecart": ecart,
         "non_conformites": ordre.non_conformites.all(),
+        "rapports": rapports,
+        "photos": photos,
+        "autres_pieces": autres,
     }
     return render(request, "maintenance/rapport_intervention.html", contexte)
 
@@ -806,11 +854,17 @@ def fiche_non_conformite(request, pk):
     nc = get_object_or_404(
         NonConformite.objects.select_related(
             "equipement", "lot", "local", "detecte_par", "responsable_action", "ordre_travail"
+        ).prefetch_related(
+            Prefetch(
+                "pieces_jointes",
+                queryset=PieceJointe.objects.select_related("ajoute_par").order_by("date_ajout"),
+            ),
         ),
         pk=pk,
     )
-    return render(request, "maintenance/fiche_non_conformite.html", {"nc": nc})
-
+    rapports, photos, autres = _trier_pieces(nc.pieces_jointes.all())
+    contexte = {"nc": nc, "rapports": rapports, "photos": photos, "autres_pieces": autres}
+    return render(request, "maintenance/fiche_non_conformite.html", contexte)
 
 def _graphique(releves, point):
     """Coordonnées d'une courbe SVG (sans bibliothèque externe). Tout est renvoyé en texte

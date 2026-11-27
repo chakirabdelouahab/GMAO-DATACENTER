@@ -2,9 +2,16 @@
 {% block titre %}{{ nc.reference }}{% endblock %}
 
 {% block contenu %}
+  <style>
+    .galerie { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+    .galerie figure { margin: 0; border: 1px solid #ccc; border-radius: 6px; padding: 6px; background: #fff; break-inside: avoid; }
+    .galerie img { width: 100%; height: 160px; object-fit: cover; display: block; border-radius: 4px; }
+    .galerie figcaption { font-size: 12px; margin-top: 6px; color: #333; }
+  </style>
+
   <p class="no-print">
     <a href="{% url 'rapport_non_conformites' %}">&larr; Rapport des non-conformités</a> |
-    <a href="{% url 'admin:maintenance_nonconformite_change' nc.id %}">Modifier dans l'administration</a> |
+    <a href="{% url 'admin:maintenance_nonconformite_change' nc.id %}">Modifier / joindre des photos</a> |
     <a href="#" onclick="window.print(); return false;">Imprimer</a>
   </p>
 
@@ -30,6 +37,35 @@
 
   <h2>Description</h2>
   <p>{{ nc.description|default:"-"|linebreaksbr }}</p>
+
+  <h2>Photos</h2>
+  {% if photos %}
+    <div class="galerie">
+      {% for ph in photos %}
+        <figure>
+          <a href="{{ ph.fichier.url }}" target="_blank"><img src="{{ ph.fichier.url }}" alt="{{ ph.legende|default:ph.nom_fichier }}" loading="lazy"></a>
+          <figcaption>
+            <strong>{{ ph.get_type_piece_display }}</strong>{% if ph.legende %} - {{ ph.legende }}{% endif %}<br>
+            {{ ph.date_ajout|date:"d/m/Y H:i" }} - {{ ph.ajoute_par|default:"-" }}
+          </figcaption>
+        </figure>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="vide">Aucune photo jointe.</p>
+  {% endif %}
+
+  {% if rapports or autres_pieces %}
+    <h2>Documents joints</h2>
+    <ul>
+      {% for d in rapports %}
+        <li><strong>Rapport signé</strong> : <a href="{{ d.fichier.url }}" target="_blank">{{ d.nom_fichier }}</a>{% if d.legende %} - {{ d.legende }}{% endif %}</li>
+      {% endfor %}
+      {% for d in autres_pieces %}
+        <li><a href="{{ d.fichier.url }}" target="_blank">{{ d.nom_fichier }}</a>{% if d.legende %} - {{ d.legende }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
 
   <h2>Action corrective</h2>
   <p>{{ nc.action_corrective|default:"Aucune action corrective saisie."|linebreaksbr }}</p>

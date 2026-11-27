@@ -40,16 +40,42 @@
     <p class="vide">Aucun sous-équipement.</p>
   {% endif %}
 
+  <h2>Procédures (MOP / SOP)</h2>
+  {% if procedures %}
+    <div class="table-scroll"><table>
+      <thead><tr><th>Type</th><th>Référence</th><th>Titre</th><th>Version</th><th>Révision</th><th>Fichier</th></tr></thead>
+      <tbody>
+        {% for pr in procedures %}
+          <tr>
+            <td><strong>{{ pr.type_procedure|upper }}</strong></td>
+            <td>{{ pr.reference }}</td>
+            <td>{{ pr.titre }}</td>
+            <td>{{ pr.version }}</td>
+            <td>{{ pr.date_revision|date:"d/m/Y"|default:"-" }}</td>
+            <td><a href="{{ pr.fichier.url }}" target="_blank">Ouvrir</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% else %}
+    <p class="vide">Aucune procédure liée directement à cet équipement. Celles des plans de maintenance figurent dans le tableau suivant.</p>
+  {% endif %}
+
   <h2>Plans de maintenance</h2>
   {% if plans %}
     <div class="table-scroll"><table>
       <thead>
-        <tr><th>Tâche</th><th>Périodicité</th><th>Durée estimée (h)</th><th>Dernière réalisation</th><th>Prochaine échéance</th><th>Actif</th></tr>
+        <tr><th>Tâche</th><th>Procédures</th><th>Périodicité</th><th>Durée estimée (h)</th><th>Dernière réalisation</th><th>Prochaine échéance</th><th>Actif</th></tr>
       </thead>
       <tbody>
         {% for p in plans %}
           <tr>
             <td>{{ p.tache }}</td>
+            <td>
+              {% for pr in p.procedures_en_vigueur %}
+                <a href="{{ pr.fichier.url }}" target="_blank">{{ pr.type_procedure|upper }} {{ pr.reference }}</a>{% if not forloop.last %}, {% endif %}
+              {% empty %}-{% endfor %}
+            </td>
             <td>{{ p.get_periodicite_jours_display }}</td>
             <td>{{ p.duree_estimee_heures|default:"-" }}</td>
             <td>{{ p.derniere_realisation|date:"d/m/Y"|default:"-" }}</td>
@@ -68,18 +94,19 @@
   {% if non_conformites %}
     <div class="table-scroll"><table>
       <thead>
-        <tr><th>Réf.</th><th>Titre</th><th>Gravité</th><th>Statut</th><th>Détectée le</th><th>Échéance</th><th>Clôturée le</th></tr>
+        <tr><th>Réf.</th><th>Titre</th><th>Gravité</th><th>Statut</th><th>Détectée le</th><th>Échéance</th><th>Clôturée le</th><th>Pièces jointes</th></tr>
       </thead>
       <tbody>
         {% for n in non_conformites %}
           <tr>
             <td>{{ n.reference }}</td>
-            <td><a href="{% url 'admin:maintenance_nonconformite_change' n.id %}">{{ n.titre }}</a></td>
+            <td><a href="{% url 'fiche_non_conformite' n.id %}">{{ n.titre }}</a></td>
             <td>{{ n.get_gravite_display }}</td>
             <td>{{ n.get_statut_display }}</td>
             <td>{{ n.date_detection|date:"d/m/Y" }}</td>
             <td>{{ n.date_echeance|date:"d/m/Y"|default:"-" }}</td>
             <td>{{ n.date_cloture|date:"d/m/Y"|default:"-" }}</td>
+            <td>{% if n.nb_pieces %}📎 {{ n.nb_pieces }}{% else %}-{% endif %}</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -92,18 +119,26 @@
   {% if ordres %}
     <div class="table-scroll"><table>
       <thead>
-        <tr><th>Créé le</th><th>Titre</th><th>Type</th><th>Priorité</th><th>Statut</th><th>Technicien</th><th>Clôturé le</th></tr>
+        <tr><th>Créé le</th><th>Titre</th><th>Type</th><th>Priorité</th><th>Statut</th><th>Technicien</th><th>Clôturé le</th><th>Rapport signé</th><th>Photos et pièces</th></tr>
       </thead>
       <tbody>
         {% for o in ordres %}
           <tr>
             <td>{{ o.date_creation|date:"d/m/Y" }}</td>
-            <td><a href="{% url 'admin:maintenance_ordretravail_change' o.id %}">{{ o.titre }}</a></td>
+            <td><a href="{% url 'rapport_intervention' o.id %}">{{ o.titre }}</a></td>
             <td>{{ o.get_type_ordre_display }}</td>
             <td>{{ o.get_priorite_display }}</td>
             <td>{{ o.get_statut_display }}</td>
             <td>{{ o.technicien|default:"-" }}</td>
             <td>{{ o.date_cloture|date:"d/m/Y"|default:"-" }}</td>
+            <td>
+              {% if o.nb_rapports %}
+                <a href="{% url 'rapport_intervention' o.id %}">✔ Voir</a>
+              {% elif o.statut == "termine" %}
+                <strong class="crit-critique">⚠ manquant</strong>
+              {% else %}-{% endif %}
+            </td>
+            <td>{% if o.nb_autres %}📎 {{ o.nb_autres }}{% else %}-{% endif %}</td>
           </tr>
         {% endfor %}
       </tbody>
