@@ -3,20 +3,18 @@ from collections import Counter
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
-from django.conf import settings
-from django.views.static import serve
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .models import (
-    Equipement, Local, Lot, NonConformite, OrdreTravail, PieceJointe, PointControle,
-    Procedure, Releve, Ronde, RondeRealisee,
+    EcheancePlanning, Equipement, Local, Lot, NonConformite, OrdreTravail, PieceJointe,
+    PlanMaintenance, PointControle, Procedure, Releve, Ronde, RondeRealisee,
 )
 from .notifications import notifier_hors_seuil, rondes_non_realisees
 
@@ -36,6 +34,18 @@ def _trier_pieces(pieces):
     photos = [p for p in pieces if p.type_piece != "rapport_signe" and p.est_image]
     autres = [p for p in pieces if p.type_piece != "rapport_signe" and not p.est_image]
     return rapports, photos, autres
+
+
+def _ordres_sans_rapport():
+    """Ordres terminés auxquels aucun rapport signé n'est joint."""
+    avec_rapport = PieceJointe.objects.filter(
+        ordre_travail=OuterRef("pk"), type_piece="rapport_signe"
+    )
+    return (
+        OrdreTravail.objects.filter(statut="termine")
+        .filter(~Exists(avec_rapport))
+        .select_related("equipement", "technicien")
+    )
 
 
 @login_required
@@ -153,6 +163,7 @@ def tableau_de_bord(request):
         "nb_en_retard": en_retard.count(),
         "nb_a_venir": a_venir.count(),
         "nb_sans_date": sans_date.count(),
+        "nb_sans_rapport": _ordres_sans_rapport().count(),
         "en_retard": en_retard,
         "a_venir": a_venir,
         "sans_date": sans_date,
@@ -195,6 +206,8 @@ def detail_indicateur(request, code):
         objets = actifs.filter(date_prevue__gte=aujourdhui, date_prevue__lte=horizon)
     elif code == "ordres_sans_date":
         titre, objets = "Ordres actifs sans date prévue", actifs.filter(date_prevue__isnull=True)
+    elif code == "ordres_sans_rapport":
+        titre, objets = "Ordres terminés sans rapport signé", _ordres_sans_rapport()
     elif code == "prev_retard_ouverts":
         titre = "Préventifs en retard non entamés"
         objets = preventifs.filter(date_prevue__lt=aujourdhui, statut="ouvert")

@@ -192,3 +192,14 @@ MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 # Ils sont servis par une vue protégée par connexion (voir maintenance/urls.py).
 MEDIA_URL = "/medias/"
 MEDIA_ROOT = BASE_DIR / "medias"
+
+# Journaux : les erreurs 500 s'affichent dans « docker compose logs web ».
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "loggers": {
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "maintenance": {"handlers": ["console"], "level": "INFO"},
+    },
+}

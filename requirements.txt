@@ -5,6 +5,7 @@ gunicorn==27.0.1
 openpyxl==3.1.5
 psycopg==3.3.9
 psycopg-binary==3.3.9
+pyflakes==4.1.0
 sqlparse==0.6.1
 tzdata==2026.6
 whitenoise==6.12.0

@@ -57,6 +57,10 @@ class Command(BaseCommand):
             "--lundi", type=date.fromisoformat, default=None,
             help="Lundi de la 1re semaine du planning, AAAA-MM-JJ (par défaut : lu dans le titre du fichier)",
         )
+        parser.add_argument(
+            "--echeances-seulement", action="store_true",
+            help="Ne modifie ni les équipements ni les plans existants : enregistre seulement les semaines planifiées",
+        )
 
     def handle(self, *args, **options):
         try:
@@ -87,7 +91,7 @@ class Command(BaseCommand):
                 )
                 if cree:
                     compte["equipements"] += 1
-                else:
+                elif not options["echeances_seulement"]:
                     equipement.lot = lot
                     equipement.quantite = fiche["quantite"]
                     equipement.save(update_fields=["lot", "quantite"])
@@ -105,7 +109,7 @@ class Command(BaseCommand):
                     )
                     if cree:
                         compte["plans"] += 1
-                    elif objet.derniere_realisation is None:
+                    elif objet.derniere_realisation is None and not options["echeances_seulement"]:
                         objet.periodicite_jours = plan["jours"]
                         objet.premiere_echeance = echeance
                         objet.save(update_fields=["periodicite_jours", "premiere_echeance"])

@@ -48,6 +48,8 @@
           <span class="tb-libelle">À venir (14 j)</span><span class="tb-nombre c-orange">{{ nb_a_venir }}</span></a>
         <a class="tb-compteur" href="{% url 'detail_indicateur' 'ordres_sans_date' %}">
           <span class="tb-libelle">Sans date</span><span class="tb-nombre {% if nb_sans_date %}c-orange{% else %}c-gris{% endif %}">{{ nb_sans_date }}</span></a>
+        <a class="tb-compteur" href="{% url 'detail_indicateur' 'ordres_sans_rapport' %}">
+          <span class="tb-libelle">Terminés sans rapport signé</span><span class="tb-nombre {% if nb_sans_rapport %}c-rouge{% else %}c-vert{% endif %}">{{ nb_sans_rapport }}</span></a>
       </div>
       <div class="tb-pied"><a href="{% url 'admin:maintenance_ordretravail_changelist' %}">☰ Voir tous les ordres</a></div>
     </div>

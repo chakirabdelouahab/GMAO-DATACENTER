@@ -2,6 +2,9 @@ from django.contrib import admin
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils.html import format_html
+from django.core.exceptions import ValidationError
+from django.db.models import Exists, OuterRef
+from django.forms.models import BaseInlineFormSet
 
 from .models import (
     EcheancePlanning, Equipement, Local, Lot, NonConformite, OrdreTravail, PieceJointe,
@@ -102,13 +105,76 @@ class PlanMaintenanceAdmin(admin.ModelAdmin):
     inlines = [EcheancePlanningInline, ProcedurePlanInline]
 
 
+# --- Règle de clôture : un ordre ne passe à « Terminé » qu'avec un rapport signé ---------
+# Pour désactiver la règle, mets False.
+RAPPORT_SIGNE_OBLIGATOIRE = True
+
+
+class RapportSigneFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        if not RAPPORT_SIGNE_OBLIGATOIRE or self.instance.statut != "termine":
+            return
+        if self.instance.pk:
+            ancien = (
+                OrdreTravail.objects.filter(pk=self.instance.pk)
+                .values_list("statut", flat=True).first()
+            )
+            if ancien == "termine":
+                return  # ordre déjà terminé : la règle ne s'applique qu'à la clôture
+        for form in self.forms:
+            donnees = getattr(form, "cleaned_data", None) or {}
+            if donnees.get("DELETE"):
+                continue
+            if donnees.get("type_piece") == "rapport_signe" and donnees.get("fichier"):
+                return
+        raise ValidationError(
+            "Pour terminer cet ordre, joignez d'abord le rapport signé et scanné "
+            "(type « Rapport signé (scan) »), puis enregistrez."
+        )
+
+
+class PieceJointeOrdreInline(PieceJointeInline):
+    formset = RapportSigneFormSet
+
+
+class RapportSigneFilter(admin.SimpleListFilter):
+    title = "rapport signé"
+    parameter_name = "rapport_signe"
+
+    def lookups(self, request, model_admin):
+        return [("manquant", "Terminés sans rapport signé"), ("joint", "Avec rapport signé")]
+
+    def queryset(self, request, queryset):
+        if self.value() == "manquant":
+            return queryset.filter(statut="termine", a_rapport=False)
+        if self.value() == "joint":
+            return queryset.filter(a_rapport=True)
+        return queryset
+
+
 @admin.register(OrdreTravail)
 class OrdreTravailAdmin(PiecesJointesMixin, admin.ModelAdmin):
-    list_display = ("titre", "equipement", "type_ordre", "priorite", "statut", "date_prevue")
-    list_filter = ("type_ordre", "priorite", "statut")
+    list_display = (
+        "titre", "equipement", "type_ordre", "priorite", "statut", "date_prevue", "rapport_signe",
+    )
+    list_filter = ("type_ordre", "priorite", "statut", RapportSigneFilter)
     search_fields = ("titre", "equipement__nom")
     actions = ["imprimer_selection"]
-    inlines = [PieceJointeInline]
+    inlines = [PieceJointeOrdreInline]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            a_rapport=Exists(
+                PieceJointe.objects.filter(ordre_travail=OuterRef("pk"), type_piece="rapport_signe")
+            )
+        )
+
+    @admin.display(description="Rapport signé", ordering="a_rapport")
+    def rapport_signe(self, obj):
+        if obj.a_rapport:
+            return "✔"
+        return "⚠ manquant" if obj.statut == "termine" else "-"
 
     @admin.action(description="Imprimer les ordres sélectionnés")
     def imprimer_selection(self, request, queryset):
