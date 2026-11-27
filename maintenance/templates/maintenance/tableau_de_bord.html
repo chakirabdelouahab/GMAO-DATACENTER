@@ -60,6 +60,27 @@
     a.gr-col:hover .gr-barre, a.gr-col:hover .gr-pile { opacity: .8; }
     .gr-note { font-size: 12px; color: #666; margin-top: 10px; }
 
+    /* ===== Bande d'indicateurs clés ===== */
+    .tb-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 16px 0 22px; }
+    .kpi { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 16px 20px; border-radius: 8px; border: 1px solid #ddd; border-left-width: 8px; background: #f8f8f8; text-decoration: none; color: inherit; transition: transform .12s, box-shadow .12s; }
+    .kpi:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, .12); }
+    .kpi-nombre { font-size: 40px; font-weight: 800; line-height: 1.1; }
+    .kpi-libelle { font-size: 15px; font-weight: 700; color: #333; }
+    .kpi-detail { font-size: 12px; color: #666; }
+    .kpi.k-rouge { border-left-color: #d6194f; background: #fdf0f4; }
+    .kpi.k-rouge .kpi-nombre { color: #d6194f; }
+    .kpi.k-orange { border-left-color: #e8761a; background: #fef5ec; }
+    .kpi.k-orange .kpi-nombre { color: #e8761a; }
+    .kpi.k-vert { border-left-color: #2fb82f; background: #f0faf0; }
+    .kpi.k-vert .kpi-nombre { color: #2fb82f; }
+    .kpi.k-gris { border-left-color: #bbb; }
+    .kpi.k-gris .kpi-nombre { color: #999; }
+    @container (min-width: 900px) {
+      .tb-kpis { grid-template-columns: repeat(4, 1fr); }
+    }
+    @container (max-width: 560px) {
+      .tb-kpis { grid-template-columns: 1fr; }
+    }
     /* ===== Adaptation à la largeur disponible (sans espaces vides) ===== */
     @container (min-width: 1400px) {
       .tb-grille { grid-template-columns: repeat(4, 1fr); }
@@ -75,7 +96,30 @@
 
   <h1>Tableau de bord</h1>
   <div class="tb-zone">
-
+    <div class="tb-kpis">
+      {% with taux=graphe_taux|last %}
+      <a class="kpi {% if nb_en_retard %}k-rouge{% else %}k-vert{% endif %}" href="{% url 'detail_indicateur' 'ordres_retard' %}">
+        <span class="kpi-nombre">{{ nb_en_retard }}</span>
+        <span class="kpi-libelle">Ordres en retard</span>
+        <span class="kpi-detail">{% if nb_en_retard %}à traiter en priorité{% else %}aucun retard{% endif %}</span>
+      </a>
+      <a class="kpi k-{{ taux.classe|slice:'2:' }}" href="{% url 'detail_indicateur' taux.code %}">
+        <span class="kpi-nombre">{{ taux.valeur }}</span>
+        <span class="kpi-libelle">Préventif réalisé ce mois</span>
+        <span class="kpi-detail">{{ taux.titre }}</span>
+      </a>
+      {% endwith %}
+      <a class="kpi {% if nb_nc_critiques %}k-rouge{% else %}k-vert{% endif %}" href="{% url 'detail_indicateur' 'nc_critiques' %}">
+        <span class="kpi-nombre">{{ nb_nc_critiques }}</span>
+        <span class="kpi-libelle">Non-conformités critiques</span>
+        <span class="kpi-detail">{% if nb_nc_critiques %}non clôturées{% else %}aucune critique ouverte{% endif %}</span>
+      </a>
+      <a class="kpi {% if rondes.non_realisees %}k-orange{% else %}k-vert{% endif %}" href="{% url 'detail_indicateur' 'rondes_non_realisees' %}">
+        <span class="kpi-nombre">{{ rondes.non_realisees }}</span>
+        <span class="kpi-libelle">Rondes non réalisées</span>
+        <span class="kpi-detail">{% if rondes.non_realisees %}à effectuer aujourd'hui{% else %}toutes les rondes sont faites{% endif %}</span>
+      </a>
+    </div>
   <div class="tb-grille">
 
     <!-- Ordres de travail -->
