@@ -120,6 +120,7 @@
       </summary>
       <div class="sous">
         <a class="{% if nom == 'liste_equipements' or nom == 'fiche_equipement' %}actif{% endif %}" href="{% url 'liste_equipements' %}">Équipements</a>
+        <a class="{% if nom == 'planning_maintenance' %}actif{% endif %}" href="{% url 'planning_maintenance' %}">Planning de maintenance</a>
         <a href="{% url 'admin:maintenance_ordretravail_changelist' %}">Ordres de travail</a>
         <a href="{% url 'admin:maintenance_planmaintenance_changelist' %}">Plans de maintenance</a>
         <a href="{% url 'imprimer_ordres' %}" target="_blank">Imprimer les ordres à traiter</a>

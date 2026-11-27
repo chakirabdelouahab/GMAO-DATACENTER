@@ -155,3 +155,35 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "gmao@localhost")
 SITE_URL = os.environ.get("SITE_URL", "http://127.0.0.1:8000")
 
 LOGIN_URL = "/admin/login/"
+
+
+# --- Déploiement (Docker / PostgreSQL) -------------------------------------------
+# Sans variables d'environnement, le projet reste en SQLite (développement sur ton PC).
+if os.environ.get("POSTGRES_DB"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ["POSTGRES_DB"],
+            "USER": os.environ.get("POSTGRES_USER", ""),
+            "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
+            "HOST": os.environ.get("POSTGRES_HOST", "db"),
+            "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        }
+    }
+
+if os.environ.get("DJANGO_SECRET_KEY"):
+    SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+
+DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+
+_hotes = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h.strip()]
+if _hotes:
+    ALLOWED_HOSTS = _hotes
+
+_origines = [o.strip() for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
+if _origines:
+    CSRF_TRUSTED_ORIGINS = _origines
+
+# Fichiers statiques (CSS, images) servis par WhiteNoise en production.
+STATIC_ROOT = BASE_DIR / "staticfiles"
+MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")

@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  sauvegarde:
+    image: postgres:17
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "/sauvegarde.sh"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SAUVEGARDE_JOURS: ${SAUVEGARDE_JOURS:-14}
+      SAUVEGARDE_HEURE: ${SAUVEGARDE_HEURE:-02:00}
+      TZ: Africa/Casablanca
+    volumes:
+      - ./sauvegardes:/sauvegardes
+      - ./docker/sauvegarde.sh:/sauvegarde.sh:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
