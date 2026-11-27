@@ -187,3 +187,8 @@ if _origines:
 # Fichiers statiques (CSS, images) servis par WhiteNoise en production.
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+
+# --- Fichiers téléversés (procédures, rapports signés, photos) ------------------------
+# Ils sont servis par une vue protégée par connexion (voir maintenance/urls.py).
+MEDIA_URL = "/medias/"
+MEDIA_ROOT = BASE_DIR / "medias"

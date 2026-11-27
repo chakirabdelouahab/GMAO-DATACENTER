@@ -23,6 +23,8 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    volumes:
+      - ./medias:/app/medias
 
   sauvegarde:
     image: postgres:17
@@ -37,6 +39,7 @@ services:
       TZ: Africa/Casablanca
     volumes:
       - ./sauvegardes:/sauvegardes
+      - ./medias:/medias:ro
       - ./docker/sauvegarde.sh:/sauvegarde.sh:ro
     depends_on:
       db:

@@ -1,3 +1,6 @@
+import os
+
+from django.core.validators import FileExtensionValidator
 from datetime import date, time, timedelta
 
 from django.utils import timezone
@@ -361,3 +364,129 @@ class EcheancePlanning(models.Model):
 
     def __str__(self):
         return f"{self.plan} - semaine du {self.semaine:%d/%m/%Y}"
+
+    
+
+# ----------------------------------------------------------------------------
+# Procédures (MOP / SOP) et pièces jointes (rapports signés, photos)
+# ----------------------------------------------------------------------------
+
+TAILLE_MAX_MO = 15
+
+
+def valider_taille(fichier):
+    if fichier.size > TAILLE_MAX_MO * 1024 * 1024:
+        raise ValidationError(f"Fichier trop volumineux (maximum {TAILLE_MAX_MO} Mo).")
+
+
+class Procedure(models.Model):
+    TYPE_CHOICES = [
+        ("mop", "MOP - Mode opératoire"),
+        ("sop", "SOP - Procédure opératoire standard"),
+    ]
+    STATUT_CHOICES = [
+        ("en_vigueur", "En vigueur"),
+        ("brouillon", "Brouillon"),
+        ("obsolete", "Obsolète"),
+    ]
+
+    type_procedure = models.CharField("type", max_length=3, choices=TYPE_CHOICES, default="sop")
+    reference = models.CharField("référence", max_length=50)
+    titre = models.CharField(max_length=200)
+    version = models.CharField(max_length=20, default="1.0")
+    statut = models.CharField(max_length=12, choices=STATUT_CHOICES, default="en_vigueur")
+    date_revision = models.DateField("date de révision", null=True, blank=True)
+    fichier = models.FileField(
+        upload_to="procedures/%Y/",
+        validators=[
+            FileExtensionValidator(["pdf", "doc", "docx", "xls", "xlsx"]),
+            valider_taille,
+        ],
+    )
+    description = models.TextField(blank=True)
+    lot = models.ForeignKey(Lot, on_delete=models.SET_NULL, null=True, blank=True)
+    equipements = models.ManyToManyField(
+        Equipement, blank=True, related_name="procedures", verbose_name="équipements concernés"
+    )
+    plans = models.ManyToManyField(
+        PlanMaintenance, blank=True, related_name="procedures",
+        verbose_name="plans de maintenance liés",
+    )
+    ajoute_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        editable=False, related_name="procedures_ajoutees", verbose_name="ajoutée par",
+    )
+    date_ajout = models.DateTimeField("ajoutée le", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "procédure (MOP / SOP)"
+        verbose_name_plural = "procédures (MOP / SOP)"
+        ordering = ["type_procedure", "reference", "-version"]
+        constraints = [
+            models.UniqueConstraint(fields=["reference", "version"], name="une_version_par_reference"),
+        ]
+
+    @property
+    def nom_fichier(self):
+        return os.path.basename(self.fichier.name)
+
+    def __str__(self):
+        return f"{self.type_procedure.upper()} {self.reference} (v{self.version}) - {self.titre}"
+
+
+class PieceJointe(models.Model):
+    TYPE_CHOICES = [
+        ("rapport_signe", "Rapport signé (scan)"),
+        ("photo_avant", "Photo avant"),
+        ("photo_apres", "Photo après"),
+        ("photo", "Autre photo"),
+        ("autre", "Autre document"),
+    ]
+
+    ordre_travail = models.ForeignKey(
+        OrdreTravail, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="pieces_jointes", verbose_name="ordre de travail",
+    )
+    non_conformite = models.ForeignKey(
+        NonConformite, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="pieces_jointes", verbose_name="non-conformité",
+    )
+    type_piece = models.CharField("type", max_length=15, choices=TYPE_CHOICES, default="photo")
+    fichier = models.FileField(
+        upload_to="pieces_jointes/%Y/%m/",
+        validators=[
+            FileExtensionValidator(["pdf", "jpg", "jpeg", "png", "webp"]),
+            valider_taille,
+        ],
+    )
+    legende = models.CharField("légende", max_length=200, blank=True)
+    ajoute_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        editable=False, related_name="pieces_ajoutees", verbose_name="ajoutée par",
+    )
+    date_ajout = models.DateTimeField("ajoutée le", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "pièce jointe"
+        verbose_name_plural = "pièces jointes"
+        ordering = ["-date_ajout"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(ordre_travail__isnull=False, non_conformite__isnull=True)
+                    | models.Q(ordre_travail__isnull=True, non_conformite__isnull=False)
+                ),
+                name="piece_jointe_une_seule_cible",
+            ),
+        ]
+
+    @property
+    def nom_fichier(self):
+        return os.path.basename(self.fichier.name)
+
+    @property
+    def est_image(self):
+        return self.fichier.name.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+
+    def __str__(self):
+        return f"{self.get_type_piece_display()} - {self.nom_fichier}"

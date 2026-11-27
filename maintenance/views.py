@@ -3,6 +3,8 @@ from collections import Counter
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
+from django.views.static import serve
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -1260,3 +1262,11 @@ def planning_maintenance(request):
         "masquer_vides": masquer_vides,
     }
     return render(request, "maintenance/planning_maintenance.html", contexte)
+
+
+@login_required
+def servir_media(request, chemin):
+    """Fichiers téléversés : accessibles uniquement aux utilisateurs connectés."""
+    reponse = serve(request, chemin, document_root=settings.MEDIA_ROOT)
+    reponse["X-Content-Type-Options"] = "nosniff"
+    return reponse

@@ -19,4 +19,5 @@ urlpatterns = [
     path("rapports/non-conformites/<int:pk>/", views.fiche_non_conformite, name="fiche_non_conformite"),
     path("rapports/mesures/", views.historique_mesures, name="historique_mesures"),
     path("planning/", views.planning_maintenance, name="planning_maintenance"),
+    path("medias/<path:chemin>", views.servir_media, name="servir_media"),
 ]
