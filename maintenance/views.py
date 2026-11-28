@@ -7,7 +7,9 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Prefetch, Q
-from django.http import HttpResponse
+from django.conf import settings
+from django.http import Http404, HttpResponse
+from django.views.static import serve
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
